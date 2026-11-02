@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "2341097a65c8d1986151e6758acc406733e7afcf",
-  "generatedAt": "2026-11-02T22:36:37.278Z",
+  "sourceSha": "0849c0aba2c82c221457703c90c192675e058854",
+  "generatedAt": "2026-11-02T22:45:57.825Z",
   "base": null,
   "documents": [
     {
@@ -117,7 +117,8 @@
         ]
       },
       "releases": [
-        "main"
+        "main",
+        "release/v0.2.0"
       ],
       "commit": {
         "sha": "3ea42dfb0d16ff6ac1adaddd8aaa2e9394fd72c4",
