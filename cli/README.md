@@ -109,6 +109,33 @@ It reports a missing link file or token with the exact fix, and checks that
 the token can access the repository (exit code `0` ready, `1` something is
 missing).
 
+## Claude Code
+
+In the root of a code repository:
+
+```sh
+idc365-decisions hook install --repository idconnectdk/idc365-decisions
+```
+
+- Merges a SessionStart hook into `.claude/settings.json` (exec form
+  `idc365-decisions hook session-start`, no matcher, so it runs on startup,
+  resume, clear and compact) and keeps everything else in the file. Running
+  it again changes nothing. It never writes `CLAUDE.md`.
+- Creates `.idc365-decisions.json` (asks for the repository when
+  `--repository` is not given and the terminal is interactive).
+- Checks the token, its access and npm access to the registry, and lists
+  what is missing with the fix.
+
+Commit `.claude/settings.json` and `.idc365-decisions.json`. Claude Code runs
+the hook once workspace trust is accepted; a missing CLI does not break the
+session. Each session is primed with what the system is, the release and
+documentation branch of the current branch, the most important commands and
+the featured documents. Without network or token the priming comes from the
+last one cached for the branch, with a warning that it may be out of date.
+Once a day the hook checks for a newer CLI and tells the agent to ask you
+before updating. See the priming with `idc365-decisions hook session-start`;
+remove the hook with `idc365-decisions hook uninstall`.
+
 ## Write documentation
 
 Agents write all documentation through the CLI. Every write goes to a work

@@ -93,13 +93,13 @@ export interface Linker {
   type: string;
 }
 
-/** Documents with a forward relation to `id`: from the ref's index when current, otherwise by reading the documents. */
+/** Documents that use `id` (forward relations except `supersedes`): from the ref's index when current, otherwise by reading the documents. */
 export async function linkersOf(client: GitHubClient, id: string, ref: string): Promise<{ linkers: Linker[]; source: "index" | "direct" }> {
   try {
     const f = await fetchIndex(client, ref);
     if (f.index && !f.stale) {
       const doc = f.index.documents.find((d) => d.id === id);
-      return { linkers: (doc?.relations.incoming ?? []).map((r) => ({ id: r.source!, type: r.type })), source: "index" };
+      return { linkers: (doc?.relations.incoming ?? []).filter((r) => r.type !== "supersedes").map((r) => ({ id: r.source!, type: r.type })), source: "index" };
     }
   } catch {
     // fall back to reading the documents
@@ -115,7 +115,7 @@ export async function linkersOf(client: GitHubClient, id: string, ref: string): 
         const fm = parseYaml(split.frontmatter);
         if (!isRecord(fm)) continue;
         for (const r of Array.isArray(fm.relations) ? fm.relations : []) {
-          if (isRecord(r) && r.target === id && !["superseded-by", "amended-by", "depended-on-by", "implemented-by", "used-by", "attached-to"].includes(String(r.type))) linkers.push({ id: String(fm.id), type: String(r.type) });
+          if (isRecord(r) && r.target === id && !["supersedes", "superseded-by", "amended-by", "depended-on-by", "implemented-by", "used-by", "attached-to"].includes(String(r.type))) linkers.push({ id: String(fm.id), type: String(r.type) });
         }
       } catch {
         // unreadable document: skip

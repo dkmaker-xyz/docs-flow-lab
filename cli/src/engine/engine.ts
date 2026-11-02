@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { posix, resolve, join } from "node:path";
 import { loadConfig } from "./config.js";
 import { findMacros, isExternalUrl, scanLinks, splitFrontmatter } from "./markdown.js";
-import { PRIMING_FIXED_TEXT, charCount } from "./priming.js";
+import { PRIMING_FIXED_TEXT, charCount, primingFeatured } from "./priming.js";
 import { validateFrontmatter } from "./schemas.js";
 import type { Config, DocType, Finding, Relation, RuleId, ValidationResult } from "./types.js";
 import { isRecord, parseYaml } from "./yaml.js";
@@ -390,7 +390,7 @@ function checkAttachments(root: string, config: Config, docs: Doc[], binaries: B
 
 function checkPriming(config: Config, docs: Doc[], out: Collector): void {
   const featured = docs.filter((d) => d.frontmatter?.featured === true && d.body !== undefined);
-  const sizes = featured.map((d) => ({ file: d.file, chars: charCount(d.body!.trim()) }));
+  const sizes = featured.map((d) => ({ file: d.file, chars: charCount(primingFeatured(d.key ?? d.file, String(d.frontmatter?.title ?? ""), d.body!)) }));
   const fixed = charCount(PRIMING_FIXED_TEXT);
   const total = fixed + sizes.reduce((n, s) => n + s.chars, 0);
   if (total <= config.priming_budget) return;
@@ -485,6 +485,8 @@ function attachmentNotes(docs: Doc[], registry: Map<string, Doc>): { file: strin
     for (const r of relationsOf(d)) {
       if (r.type in INVERSE_OF || !r.target.startsWith("ATT-")) continue;
       linked.add(r.target);
+      // The new version itself is not "still linking" to the version it supersedes.
+      if (r.type === "supersedes") continue;
       const att = registry.get(r.target);
       if (att?.frontmatter?.state === "superseded") {
         const by = relationsOf(att).filter((x) => x.type === "superseded-by").map((x) => x.target);

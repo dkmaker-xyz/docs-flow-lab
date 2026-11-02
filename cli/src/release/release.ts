@@ -43,11 +43,8 @@ export function parseRel(file: string, text: string): Rel | undefined {
 /** Every REL in docs/release at a ref. */
 export async function listRels(client: GitHubClient, ref = "main", repo = new DocRepo(client)): Promise<Rel[]> {
   const entries = ((await repo.folder("docs/release", ref)) ?? []).filter((e) => e.type === "file" && /^[0-9]{4,}-.+\.md$/.test(e.name));
-  const rels: Rel[] = [];
-  for (const e of entries) {
-    const r = parseRel(e.path, (await repo.text(e.path, ref)) ?? "");
-    if (r) rels.push(r);
-  }
+  const texts = await Promise.all(entries.map((e) => repo.text(e.path, ref)));
+  const rels = entries.map((e, i) => parseRel(e.path, texts[i] ?? "")).filter((r): r is Rel => !!r);
   return rels.sort((a, b) => a.id.localeCompare(b.id));
 }
 
