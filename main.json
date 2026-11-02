@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "47366a8cc3a37e2b4c703cce2fd52e0560c83042",
-  "generatedAt": "2026-11-02T21:49:53.272Z",
+  "sourceSha": "0cb3e4e9001664fa6c81d1dfc7d51f5285d56766",
+  "generatedAt": "2026-11-02T21:54:09.955Z",
   "base": null,
   "documents": [
     {
@@ -14,19 +14,56 @@
       "description": "Test documents are markdown files in the repository.",
       "intent": "First test decision; superseded in the phase 5 test.",
       "when": "Phase 5 integration test only.",
-      "state": "accepted",
+      "state": "superseded",
       "category": "architecture",
       "featured": false,
       "placeholder": false,
       "pending": false,
       "relations": {
         "outgoing": [],
+        "incoming": [
+          {
+            "type": "supersedes",
+            "source": "ADR-0053",
+            "why": "frontmatter changes how test documents are stored"
+          }
+        ]
+      },
+      "releases": [],
+      "commit": {
+        "sha": "0cb3e4e9001664fa6c81d1dfc7d51f5285d56766",
+        "date": "2026-11-02T21:53:57Z"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "ADR-0053",
+      "type": "adr",
+      "path": "docs/adr/0053-store-test-documents-as-markdown-with-frontmatter.md",
+      "slug": "store-test-documents-as-markdown-with-frontmatter",
+      "title": "Store test documents as markdown with frontmatter",
+      "description": "Test documents are markdown with YAML frontmatter.",
+      "intent": "Second test decision; supersedes ADR-0052 in the phase 5 test.",
+      "when": "Phase 5 integration test only.",
+      "state": "accepted",
+      "category": "architecture",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [
+          {
+            "type": "supersedes",
+            "target": "ADR-0052",
+            "why": "frontmatter changes how test documents are stored"
+          }
+        ],
         "incoming": []
       },
       "releases": [],
       "commit": {
-        "sha": "92783329d10fea82c3557dbe0c706500b519e364",
-        "date": "2026-11-02T22:46:14+01:00"
+        "sha": "9a556e54073a5ec10726ef0274042d2c1432400d",
+        "date": "2026-11-02T22:51:37+01:00"
       },
       "mergedBy": "dkmaker"
     }
