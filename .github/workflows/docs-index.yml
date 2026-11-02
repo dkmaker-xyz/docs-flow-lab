@@ -8,6 +8,8 @@ name: Documentation index
 #   This workflow reacts to it with `workflow_run`, which GitHub runs from
 #   the default branch, so a pushed branch can never change the workflow
 #   that holds the bot key.
+# - A manual rebuild (`workflow_dispatch`, input `branch`) runs only when
+#   started from main, with the same environment and steps.
 # - The branch head is checked out as data only: no npm ci and no scripts
 #   from it. The CLI is built from main's cli/, so only reviewed code runs
 #   with the bot token.
@@ -21,6 +23,13 @@ on:
   workflow_run:
     workflows: ["Documentation index trigger"]
     types: [completed]
+  # Manual rebuild of one branch's index, started from main.
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Documentation branch to rebuild the index for
+        required: true
+        default: main
 
 permissions:
   contents: read
@@ -28,7 +37,9 @@ permissions:
 
 jobs:
   build:
-    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     environment: bot
     # One build per branch at a time; a newer one cancels an older one.
@@ -39,14 +50,14 @@ jobs:
     # writes only when the index's commit is still the branch head. Removes
     # use their own group, so a build can never cancel a remove.
     concurrency:
-      group: docs-index-build-${{ github.event.workflow_run.head_branch }}
+      group: docs-index-build-${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch }}
       cancel-in-progress: true
     steps:
       - name: Current branch head
         id: head
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch }}
         run: |
           # gh prints the error body on stdout for a 404, so accept only a commit SHA.
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$BRANCH" --jq .object.sha 2>/dev/null) || sha=""
@@ -88,7 +99,7 @@ jobs:
         env:
           # Read-only lookups (who merged a commit's PR) use the workflow token.
           IDC365_DECISIONS_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch }}
         run: node ../_cli/cli/dist/index.js index build --branch "$BRANCH" --out "$RUNNER_TEMP/index.json"
 
       - name: Bot token

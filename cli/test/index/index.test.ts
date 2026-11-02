@@ -85,6 +85,22 @@ describe("index build", () => {
     assert.equal(m.calls.length, 2, "one lookup per commit, cached");
   });
 
+  test("merged-by skips commits without a PR (the bot's post-merge edits)", async () => {
+    const root = gitRepo();
+    const merged = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    appendFileSync(join(root, "docs/adr/0002-partner-event-api.md"), "\nBot edit.\n");
+    commit(root, "bot edit");
+    const bot = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    const m = new MockGitHub()
+      .on("GET", `${R}/commits/${bot}/pulls`, { body: [] })
+      .on("GET", `${R}/commits/${merged}/pulls`, { body: [{ number: 4, merged_at: "2026-11-01T00:00:00Z", merge_commit_sha: merged }] })
+      .on("GET", `${R}/pulls/4`, { body: { merged_by: { login: "alice" } } });
+    const idx = await buildIndex({ root, branch: "main", git: localGit(root), mergedBy: mergedByLookup(new GitHubClient({ token: "t", repository: REPO, fetch: m.fetch })) });
+    const adr2 = idx.documents.find((d) => d.id === "ADR-0002")!;
+    assert.equal(adr2.commit!.sha, bot);
+    assert.equal(adr2.mergedBy, "alice");
+  });
+
   test("pendingBase follows the base-branch rule", () => {
     const git = (tags: string[], branches: string[]): GitInfo => ({ head: () => "", latestCommits: () => new Map(), tags: () => tags, branchExists: (b) => branches.includes(b), changedSince: () => new Set() });
     assert.equal(pendingBase("main", git([], [])), null);

@@ -1,0 +1,78 @@
+name: Documentation post-merge
+
+# The bot's follow-up after a merge into a truth branch (spec 4.3, 7.5):
+# inverse relations in the target documents and their target state, in one
+# bot commit on the branch. Releases (phases, branch creation and deletion)
+# follow in phase 6.
+#
+# Runs on push to main and release/*. Both are truth branches: their workflow
+# file and cli/ only change through reviewed, merged PRs, so the CLI is built
+# from the pushed commit itself. The bot key comes from the `bot` environment
+# (deployment branches: main and release/*); BOT_CLIENT_ID is a repository
+# variable. The run is idempotent: with nothing to do it writes nothing, so
+# the bot's own commit (which triggers this workflow again) does not loop.
+# Actions are pinned to commit SHAs (tag in the comment).
+
+on:
+  push:
+    branches:
+      - main
+      - "release/*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-post-merge-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  post-merge:
+    runs-on: ubuntu-24.04
+    environment: bot
+    steps:
+      - name: Pushed commit, with history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - name: Build the CLI
+        working-directory: cli
+        run: npm ci && npm run build
+
+      - name: Plan and validate (no token)
+        id: plan
+        env:
+          BRANCH: ${{ github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          node cli/dist/index.js post-merge --dry-run --branch "$BRANCH" --before "$BEFORE" --after "$AFTER" --json > "$RUNNER_TEMP/plan.json"
+          cat "$RUNNER_TEMP/plan.json"
+          outcome=$(node -p "require(process.env.RUNNER_TEMP + '/plan.json').outcome")
+          echo "outcome=$outcome" >> "$GITHUB_OUTPUT"
+          git checkout -- .
+
+      - name: Bot token
+        if: steps.plan.outputs.outcome == 'dry-run'
+        id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.BOT_CLIENT_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Commit the edits
+        if: steps.plan.outputs.outcome == 'dry-run'
+        env:
+          IDC365_DECISIONS_TOKEN: ${{ steps.bot.outputs.token }}
+          BRANCH: ${{ github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: node cli/dist/index.js post-merge --branch "$BRANCH" --before "$BEFORE" --after "$AFTER" | tee -a "$GITHUB_STEP_SUMMARY"

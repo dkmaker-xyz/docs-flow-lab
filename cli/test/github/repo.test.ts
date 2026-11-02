@@ -105,6 +105,22 @@ describe("branches, commits and pull requests", () => {
     assert.deepEqual(m.callsTo("POST", `${R}/git/commits`)[0]!.body, { message: "Add ADR-0001", tree: "tree1", parents: ["head1"] });
     assert.deepEqual(m.callsTo("PATCH", `${R}/git/refs/heads/v0.1.0/x`)[0]!.body, { sha: "commit1", force: false });
   });
+  test("createBranchWithCommit commits on the base head, then creates the ref at that commit", async () => {
+    const { createBranchWithCommit } = await import("../../src/github/index.js");
+    const m = withBranches(new MockGitHub(), { main: "base1" })
+      .on("GET", `${R}/git/commits/base1`, { body: { sha: "base1", tree: { sha: "tree0" } } })
+      .on("POST", `${R}/git/blobs`, { status: 201, body: { sha: "blob1" } })
+      .on("POST", `${R}/git/trees`, { status: 201, body: { sha: "tree1" } })
+      .on("POST", `${R}/git/commits`, { status: 201, body: { sha: "commit1" } })
+      .on("POST", `${R}/git/refs`, { status: 201, body: {} });
+    assert.deepEqual(await createBranchWithCommit(client(m), "v0.1.0/x", "main", [{ path: "a.md", content: "a" }], "Add a"), { sha: "commit1", parent: "base1" });
+    assert.deepEqual(m.callsTo("POST", `${R}/git/commits`)[0]!.body, { message: "Add a", tree: "tree1", parents: ["base1"] });
+    assert.deepEqual(m.callsTo("POST", `${R}/git/refs`)[0]!.body, { ref: "refs/heads/v0.1.0/x", sha: "commit1" });
+    assert.equal(m.calls.filter((c) => c.method === "PATCH").length, 0);
+    const order = m.calls.map((c) => `${c.method} ${c.path.replace(R, "")}`);
+    assert.ok(order.indexOf("POST /git/commits") < order.indexOf("POST /git/refs"), "commit before ref");
+  });
+
   test("openPullRequest posts head, base, title and body", async () => {
     const m = new MockGitHub().on("POST", `${R}/pulls`, { status: 201, body: { number: 7, html_url: "https://github.com/acme/docs/pull/7" } });
     assert.deepEqual(await openPullRequest(client(m), "v0.1.0/x", "main", "Add ADR-0001", "Body"), { number: 7, url: "https://github.com/acme/docs/pull/7", head: "v0.1.0/x", base: "main" });

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { registerDocumentCommands } from "./commands/docs.js";
 import { registerIndexCommands } from "./commands/index-cmd.js";
+import { registerPostMergeCommand } from "./commands/postmerge-cmd.js";
 import { runSetupCheck } from "./commands/setup.js";
 import { VALIDATE_HELP, runValidate } from "./commands/validate.js";
 import { packageRoot } from "./engine/package-root.js";
@@ -69,5 +70,6 @@ setup.helpInformation = () =>
 
 registerDocumentCommands(program);
 registerIndexCommands(program);
+registerPostMergeCommand(program);
 
 await program.parseAsync(process.argv);

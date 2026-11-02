@@ -19,6 +19,8 @@ export interface GitInfo {
   branchExists(name: string): boolean;
   /** Paths changed on HEAD since it left `base` (three-dot diff). */
   changedSince(base: string): Set<string>;
+  /** The newest commits that touched a path, newest first. */
+  commitsFor?(path: string, limit: number): string[];
 }
 
 export function localGit(root: string): GitInfo {
@@ -49,6 +51,7 @@ export function localGit(root: string): GitInfo {
     },
     tags: () => git("tag", "--list", "v*").split("\n").filter(Boolean),
     branchExists: (name) => ref(name) !== undefined,
+    commitsFor: (path, limit) => git("log", `-n${limit}`, "--format=%H", "--", path).split("\n").filter(Boolean),
     changedSince: (base) => {
       const r = ref(base);
       if (!r) return new Set();
@@ -66,7 +69,7 @@ export interface BuildOptions {
   now?: () => Date;
 }
 
-function markdownFiles(root: string): string[] {
+export function markdownFiles(root: string): string[] {
   const out: string[] = [];
   const walk = (rel: string) => {
     const abs = join(root, rel);
@@ -92,6 +95,19 @@ export function pendingBase(branch: string, git: GitInfo): string | null {
   if (!m) return null;
   const decision = decideBase(m[1]!, highestVersion(git.tags()), git.branchExists(`release/${m[1]}`));
   return decision.ok ? decision.base : null;
+}
+
+/**
+ * Who merged the latest PR that touched the file. Bot commits (post-merge
+ * edits) have no PR, so older commits of the file are tried, up to 10.
+ */
+async function mergedByFor(path: string, latest: string, git: GitInfo, lookup: (sha: string) => Promise<string | null>): Promise<string | null> {
+  const shas = git.commitsFor ? git.commitsFor(path, 10) : [latest];
+  for (const sha of shas.length ? shas : [latest]) {
+    const who = await lookup(sha);
+    if (who) return who;
+  }
+  return null;
 }
 
 /** Builds the index of the checkout at `root` (spec 6.2). */
@@ -144,7 +160,7 @@ export async function buildIndex(opts: BuildOptions): Promise<BranchIndex> {
       relations: { outgoing, incoming: [] },
       releases: [],
       commit,
-      mergedBy: commit && opts.mergedBy ? await opts.mergedBy(commit.sha) : null,
+      mergedBy: commit && opts.mergedBy ? await mergedByFor(path, commit.sha, git, opts.mergedBy) : null,
     });
   }
 
