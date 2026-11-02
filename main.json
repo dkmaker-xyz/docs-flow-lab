@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "39b820cb071df27b50148a4d7e503394dbf32579",
-  "generatedAt": "2026-11-02T23:36:57.838Z",
+  "sourceSha": "36f577a75dffaa97a23a769018769dd3d8889451",
+  "generatedAt": "2026-11-02T23:38:10.621Z",
   "base": null,
   "documents": [
     {
@@ -208,7 +208,7 @@
       "description": "Overview of the test system.",
       "intent": "Shows the parts of the test system; test 5.1.",
       "when": "Phase 8 integration test only.",
-      "state": "accepted",
+      "state": "superseded",
       "category": null,
       "featured": false,
       "placeholder": false,
@@ -220,6 +220,11 @@
             "type": "attachment",
             "source": "ADR-0056",
             "why": "the diagram this decision describes"
+          },
+          {
+            "type": "supersedes",
+            "source": "ATT-0002",
+            "why": "The colours of the parts changed."
           }
         ]
       },
@@ -227,8 +232,41 @@
         "main"
       ],
       "commit": {
-        "sha": "39b820cb071df27b50148a4d7e503394dbf32579",
-        "date": "2026-11-02T23:36:40Z"
+        "sha": "36f577a75dffaa97a23a769018769dd3d8889451",
+        "date": "2026-11-02T23:37:44Z"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "ATT-0002",
+      "type": "attachment",
+      "path": "docs/attachment/0002-system-overview-diagram-v2.md",
+      "slug": "system-overview-diagram-v2",
+      "title": "System overview diagram v2",
+      "description": "Second version of the overview.",
+      "intent": "Test 5.3: new version superseding ATT-0001.",
+      "when": "Phase 8 integration test only.",
+      "state": "accepted",
+      "category": null,
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [
+          {
+            "type": "supersedes",
+            "target": "ATT-0001",
+            "why": "The colours of the parts changed."
+          }
+        ],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "d8c12a0a531e3a4dbabc057073ba57c08ee602c5",
+        "date": "2026-11-03T00:35:20+01:00"
       },
       "mergedBy": "dkmaker"
     },
