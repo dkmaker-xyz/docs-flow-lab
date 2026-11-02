@@ -4,12 +4,18 @@ name: Documentation validation
 # the full validator over the PR's documentation tree. Required by the
 # truth-branches ruleset as the check `validate`.
 #
-# Read-only and without secrets. The CLI is built from the base branch's
-# cli/, not the PR's, and the PR head is checked out as data only, so a PR
-# cannot change how it is validated through cli/.
+# Why `pull_request_target`: GitHub takes this workflow file from the base
+# branch, so a PR cannot change how it is validated by editing this file.
+# It is safe to run on PR content because:
+# - the token is read-only (`permissions: contents: read`);
+# - no secrets and no environment are used;
+# - the CLI is built from the base commit's cli/, never from the PR;
+# - the PR head is checked out as data only, with `persist-credentials:
+#   false`, and nothing from it is executed (no npm ci, no scripts): the
+#   validator only reads its files.
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - main
       - "release/*"
