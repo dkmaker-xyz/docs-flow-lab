@@ -33,8 +33,13 @@ async function createIndexBranch(client: GitHubClient, path: string, content: st
 
 export interface PublishResult {
   path: string;
-  /** "skipped" when the branch was deleted meanwhile (its index would be an orphan). */
-  outcome: "created-branch" | "written" | "skipped";
+  /**
+   * - created-branch / written: published.
+   * - skipped-superseded: the branch moved past this index's sourceSha; a newer build publishes.
+   * - skipped-deleted: the branch no longer exists (any leftover index file is removed).
+   * - removed-deleted: the branch was deleted while publishing; the file just written was removed again.
+   */
+  outcome: "created-branch" | "written" | "skipped-superseded" | "skipped-deleted" | "removed-deleted";
   retries: number;
 }
 
@@ -46,12 +51,27 @@ export interface PublishResult {
 export async function publishIndex(client: GitHubClient, index: BranchIndex, opts: CasOptions = {}): Promise<PublishResult> {
   const path = indexFileName(index.branch);
   const content = JSON.stringify(index, null, 2) + "\n";
+  const api = client.repoPath(`/contents/${encodePath(path)}`);
+  // Only the index of the current head is published, and a deleted branch never gets its index back.
+  const head = await branchHead(client, index.branch);
+  if (!head) {
+    await deleteIndex(client, index.branch, opts);
+    return { path, outcome: "skipped-deleted", retries: 0 };
+  }
+  if (head !== index.sourceSha) return { path, outcome: "skipped-superseded", retries: 0 };
+  const written = await writeIndexFile(client, index, path, content, api, opts);
+  // The branch may have been deleted between the check and the write, and its remove run may already be done.
+  if (!(await branchHead(client, index.branch))) {
+    await deleteIndex(client, index.branch, opts);
+    return { path, outcome: "removed-deleted", retries: written.retries };
+  }
+  return written;
+}
+
+async function writeIndexFile(client: GitHubClient, index: BranchIndex, path: string, content: string, api: string, opts: CasOptions): Promise<PublishResult> {
   const maxAttempts = opts.maxAttempts ?? 20;
   const [lo, hi] = opts.backoffMs ?? [100, 1000];
   const sleep = opts.sleep ?? sleepReal;
-  const api = client.repoPath(`/contents/${encodePath(path)}`);
-  // A branch deleted while its index was being built must not get its index back.
-  if (!(await branchHead(client, index.branch))) return { path, outcome: "skipped", retries: 0 };
   let retries = 0;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const current = await client.request<{ sha: string }>("GET", api, { query: { ref: INDEX_BRANCH }, allow: [404] });

@@ -121,9 +121,11 @@ export function registerIndexCommands(program: Command): void {
         }
         const built = JSON.parse(readFileSync(file, "utf8")) as BranchIndex;
         const r = await publishIndex(client, built);
-        print(!!o.json, { ok: true, ...r, branch: built.branch, sourceSha: built.sourceSha }, r.outcome === "skipped"
-          ? md(`Index not published: \`${built.branch}\` no longer exists`, [], "None. The branch was deleted while its index was built.")
-          : md(`Index published: ${INDEX_BRANCH}/${r.path}`, [...summary(built), `- ${r.outcome === "created-branch" ? `Created \`${INDEX_BRANCH}\`` : "Written"}${r.retries ? ` after ${r.retries} retries` : ""}`], "None."));
+        print(!!o.json, { ok: true, ...r, branch: built.branch, sourceSha: built.sourceSha }, r.outcome === "skipped-deleted" || r.outcome === "removed-deleted"
+          ? md(`Index not kept: \`${built.branch}\` no longer exists`, [], "None. The branch was deleted while its index was built; its index file is removed.")
+          : r.outcome === "skipped-superseded"
+            ? md(`Index not published: \`${built.branch}\` moved past ${built.sourceSha.slice(0, 7)}`, [], "None. The build of the newer commit publishes the index.")
+            : md(`Index published: ${INDEX_BRANCH}/${r.path}`, [...summary(built), `- ${r.outcome === "created-branch" ? `Created \`${INDEX_BRANCH}\`` : "Written"}${r.retries ? ` after ${r.retries} retries` : ""}`], "None."));
         return 0;
       });
     });
