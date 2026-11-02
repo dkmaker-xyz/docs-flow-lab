@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -125,4 +125,28 @@ test("code create outside a git repository is refused", () => {
   const r = spawnSync(process.execPath, [CLI, "code", "create", "src/x.ts", "--version", "v1.0.1"], { cwd: temp, encoding: "utf8" });
   assert.equal(r.status, 1);
   assert.match(r.stdout, /not inside a git repository/);
+});
+
+test("index build writes the index of a checkout; status and publish explain missing setup", () => {
+  const root = join(temp, "idx-repo");
+  cpSync(VALID, root, { recursive: true });
+  const git = (...a: string[]) => spawnSync("git", a, { cwd: root, encoding: "utf8" });
+  git("init", "-q", "-b", "main");
+  git("add", "-A");
+  git("-c", "user.email=a@b", "-c", "user.name=t", "commit", "-qm", "init");
+  const env = { ...process.env, IDC365_DECISIONS_TOKEN: "", GITHUB_REPOSITORY: "", GITHUB_REF_NAME: "" };
+  const out = join(temp, "index.json");
+  const r = spawnSync(process.execPath, [CLI, "index", "build", "--out", out], { cwd: root, encoding: "utf8", env });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^# Index built for main/);
+  assert.match(r.stdout, /## Next action/);
+  const idx = JSON.parse(readFileSync(out, "utf8")) as { branch: string; documents: unknown[] };
+  assert.equal(idx.branch, "main");
+  assert.equal(idx.documents.length, 11);
+  const pub = spawnSync(process.execPath, [CLI, "index", "publish", out, "--repository", "acme/docs"], { cwd: root, encoding: "utf8", env });
+  assert.equal(pub.status, 1);
+  assert.match(pub.stdout, /IDC365_DECISIONS_TOKEN is not set/);
+  const status = spawnSync(process.execPath, [CLI, "index", "status"], { cwd: temp, encoding: "utf8", env });
+  assert.equal(status.status, 1);
+  assert.match(status.stdout, /^# Setup incomplete/);
 });
