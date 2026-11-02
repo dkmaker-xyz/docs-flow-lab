@@ -1,0 +1,2 @@
+# Base URL a Jira key is appended to, ending with a slash (spec 4.2).
+jira_base_url: "https://example.atlassian.net/browse/"
