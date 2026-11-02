@@ -13,7 +13,7 @@ name: Documentation index
 #   with the bot token.
 # - The bot's private key lives in the `bot` environment, whose deployment
 #   branches are limited to main; a job started from any other ref cannot
-#   read it. BOT_APP_ID is a repository variable.
+#   read it. BOT_CLIENT_ID (the App's client ID) is a repository variable.
 # - Actions are pinned to commit SHAs (tag in the comment) so a moved tag can
 #   never change what runs with the bot token.
 
@@ -30,7 +30,7 @@ permissions:
 jobs:
   build:
     if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: bot
     # One run per branch at a time, so an older run never overwrites a newer index.
     concurrency:
@@ -73,7 +73,7 @@ jobs:
         id: bot
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ vars.BOT_APP_ID }}
+          client-id: ${{ vars.BOT_CLIENT_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
           permission-contents: write
 
@@ -84,7 +84,7 @@ jobs:
 
   remove:
     if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'meta/')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: bot
     concurrency:
       group: docs-index-${{ github.event.ref }}
@@ -110,7 +110,7 @@ jobs:
         id: bot
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ vars.BOT_APP_ID }}
+          client-id: ${{ vars.BOT_CLIENT_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
           permission-contents: write
 
