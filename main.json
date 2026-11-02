@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "03cc4e265af23163a07d7760224bf9c6e680832d",
-  "generatedAt": "2026-11-02T22:52:51.593Z",
+  "sourceSha": "cbd40833fef17b4fb08b0b88c972657e20acade7",
+  "generatedAt": "2026-11-02T22:59:32.659Z",
   "base": null,
   "documents": [
     {
@@ -31,7 +31,8 @@
       },
       "releases": [
         "main",
-        "v0.1.0"
+        "v0.1.0",
+        "v0.2.0"
       ],
       "commit": {
         "sha": "0cb3e4e9001664fa6c81d1dfc7d51f5285d56766",
@@ -76,7 +77,8 @@
       },
       "releases": [
         "main",
-        "v0.1.0"
+        "v0.1.0",
+        "v0.2.0"
       ],
       "commit": {
         "sha": "2341097a65c8d1986151e6758acc406733e7afcf",
@@ -115,7 +117,8 @@
         ]
       },
       "releases": [
-        "main"
+        "main",
+        "v0.2.0"
       ],
       "commit": {
         "sha": "3ea42dfb0d16ff6ac1adaddd8aaa2e9394fd72c4",
@@ -154,7 +157,8 @@
         ]
       },
       "releases": [
-        "main"
+        "main",
+        "v0.2.0"
       ],
       "commit": {
         "sha": "346c24026669cd35ad215a7c1147e7168a143d21",
@@ -193,7 +197,8 @@
         ]
       },
       "releases": [
-        "main"
+        "main",
+        "v0.2.0"
       ],
       "commit": {
         "sha": "d326294a4aeef62583a1e39381b05880b4555fc0",
@@ -220,11 +225,12 @@
         "incoming": []
       },
       "releases": [
-        "main"
+        "main",
+        "v0.2.0"
       ],
       "commit": {
-        "sha": "b197f97d21c712147bc74c3ab5065cb5444dcf9a",
-        "date": "2026-11-02T22:31:16Z"
+        "sha": "6931b636fb24ed4421db7e48e094b3e7760722c8",
+        "date": "2026-11-02T23:54:53+01:00"
       },
       "mergedBy": "dkmaker"
     }
