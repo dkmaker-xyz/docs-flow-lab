@@ -1,0 +1,9 @@
+# Attachment binaries are stored with Git LFS (idc365-decisions).
+docs/attachment/*.docx filter=lfs diff=lfs merge=lfs -text
+docs/attachment/*.jpg filter=lfs diff=lfs merge=lfs -text
+docs/attachment/*.pdf filter=lfs diff=lfs merge=lfs -text
+docs/attachment/*.png filter=lfs diff=lfs merge=lfs -text
+docs/attachment/*.pptx filter=lfs diff=lfs merge=lfs -text
+docs/attachment/*.svg filter=lfs diff=lfs merge=lfs -text
+docs/attachment/*.webp filter=lfs diff=lfs merge=lfs -text
+docs/attachment/*.xlsx filter=lfs diff=lfs merge=lfs -text
