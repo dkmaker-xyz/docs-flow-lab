@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "a830b4bf94de25d582f534bd678eb64793cf5a0b",
-  "generatedAt": "2026-11-02T23:34:59.356Z",
+  "sourceSha": "39b820cb071df27b50148a4d7e503394dbf32579",
+  "generatedAt": "2026-11-02T23:36:57.838Z",
   "base": null,
   "documents": [
     {
@@ -167,6 +167,39 @@
       "mergedBy": "dkmaker"
     },
     {
+      "id": "ADR-0056",
+      "type": "adr",
+      "path": "docs/adr/0056-keep-one-overview-diagram.md",
+      "slug": "keep-one-overview-diagram",
+      "title": "Keep one overview diagram",
+      "description": "One overview diagram describes the system.",
+      "intent": "Test 5.3: a document linking to ATT-0001.",
+      "when": "Phase 8 integration test only.",
+      "state": "accepted",
+      "category": "architecture",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [
+          {
+            "type": "attachment",
+            "target": "ATT-0001",
+            "why": "the diagram this decision describes"
+          }
+        ],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "02f4d9949035d9a10c9278d18b132cb74cee4aad",
+        "date": "2026-11-03T00:35:11+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
       "id": "ATT-0001",
       "type": "attachment",
       "path": "docs/attachment/0001-system-overview-diagram.md",
@@ -182,14 +215,20 @@
       "pending": false,
       "relations": {
         "outgoing": [],
-        "incoming": []
+        "incoming": [
+          {
+            "type": "attachment",
+            "source": "ADR-0056",
+            "why": "the diagram this decision describes"
+          }
+        ]
       },
       "releases": [
         "main"
       ],
       "commit": {
-        "sha": "80d474e7e556c7b8a5b85e771f9d1b04da550e7f",
-        "date": "2026-11-03T00:30:41+01:00"
+        "sha": "39b820cb071df27b50148a4d7e503394dbf32579",
+        "date": "2026-11-02T23:36:40Z"
       },
       "mergedBy": "dkmaker"
     },
