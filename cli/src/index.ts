@@ -6,6 +6,7 @@ import { registerDocumentCommands } from "./commands/docs.js";
 import { registerIndexCommands } from "./commands/index-cmd.js";
 import { registerPostMergeCommand } from "./commands/postmerge-cmd.js";
 import { registerReleaseCommands } from "./commands/release-cmd.js";
+import { registerTechCheck } from "./commands/tech-check.js";
 import { runSetupCheck } from "./commands/setup.js";
 import { VALIDATE_HELP, runValidate } from "./commands/validate.js";
 import { packageRoot } from "./engine/package-root.js";
@@ -73,5 +74,6 @@ registerDocumentCommands(program);
 registerIndexCommands(program);
 registerPostMergeCommand(program);
 registerReleaseCommands(program);
+registerTechCheck(program);
 
 await program.parseAsync(process.argv);

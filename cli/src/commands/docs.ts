@@ -73,6 +73,10 @@ function fieldsFrom(o: Record<string, unknown>): DocFields {
     license: o.license as string | undefined,
     lastReview: o.lastReview as string | undefined,
     reviewIntervalMonths: o.reviewIntervalMonths === undefined ? undefined : Number(o.reviewIntervalMonths),
+    cooldownExemptions: (o.cooldownExemption as string[] | undefined)?.map((spec) => {
+      const m = /^(.+)@([^@=]+)=(CVE-[0-9]{4}-[0-9]{4,}):([0-9]{4}-[0-9]{2}-[0-9]{2})$/.exec(spec);
+      return m ? { package: m[1]!, version: m[2]!, cve: m[3]!, until: m[4]! } : { package: spec, version: "", cve: "", until: "" };
+    }),
   };
 }
 
@@ -149,6 +153,7 @@ function verbExamples(kind: Kind): { verb: string; example: string }[] {
     { verb: "update", example: `${n} update ${kind.prefix}-0042 --version v1.0.1 [--state deprecated] [--body-file body.md]` },
     { verb: "show", example: `${n} show ${kind.prefix}-0042 [--ref main]` },
     { verb: "list", example: `${n} list [--state accepted] [--category …] [--ref main]` },
+    ...(kind.noun === "tech" ? [{ verb: "check", example: `${n} check [--json]` }] : []),
   ];
 }
 
@@ -185,7 +190,8 @@ function addFieldOptions(cmd: Command, kind: Kind): Command {
       .option("--docs <url>")
       .option("--license <spdx>")
       .option("--last-review <YYYY-MM-DD>", "default today")
-      .option("--review-interval-months <n>");
+      .option("--review-interval-months <n>")
+      .option("--cooldown-exemption <name@version=CVE-YYYY-NNNN:YYYY-MM-DD>", "exempt a version from the cooldown until a date, naming the CVE (repeat)", collect);
   }
   return cmd;
 }
