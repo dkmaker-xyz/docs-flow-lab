@@ -91,6 +91,41 @@
       "description": "Months between reviews.",
       "type": "integer",
       "minimum": 1
+    },
+    "cooldown_exemptions": {
+      "description": "Temporary exemptions from the cooldown (spec 5.3): one entry per package version, with the CVE that requires it and the last day it applies.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "package",
+          "version",
+          "cve",
+          "until"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "package": {
+            "description": "Package identifier as listed in packages.",
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "description": "Exact version that is exempted.",
+            "type": "string",
+            "minLength": 1
+          },
+          "cve": {
+            "description": "The CVE that requires the new version, e.g. CVE-2026-12345.",
+            "type": "string",
+            "pattern": "^CVE-[0-9]{4}-[0-9]{4,}$"
+          },
+          "until": {
+            "description": "Last day the exemption applies (YYYY-MM-DD).",
+            "$ref": "urn:idc365-decisions:frontmatter:common#/$defs/date"
+          }
+        }
+      }
     }
   },
   "$defs": {

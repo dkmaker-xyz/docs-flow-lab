@@ -33,6 +33,8 @@ export interface DocFields {
   license?: string;
   lastReview?: string;
   reviewIntervalMonths?: number;
+  /** TECH cooldown exemptions to add (kept with the existing ones). */
+  cooldownExemptions?: { package: string; version: string; cve: string; until: string }[];
   /** Type fields set as they are, after the managed ones (for example REL fields). */
   extra?: Record<string, unknown>;
 }
@@ -118,6 +120,9 @@ function buildFields(kind: Kind, id: string | undefined, f: DocFields, existing:
     out.license = pick(f.license, "license");
     out.last_review = pick(f.lastReview, "last_review") ?? new Date().toISOString().slice(0, 10);
     out.review_interval_months = pick(f.reviewIntervalMonths, "review_interval_months");
+    const prior = Array.isArray(existing.cooldown_exemptions) ? (existing.cooldown_exemptions as { package: string; version: string }[]) : [];
+    const added = (f.cooldownExemptions ?? []).filter((e) => !prior.some((p) => p.package === e.package && p.version === e.version));
+    if (prior.length || added.length) out.cooldown_exemptions = [...prior, ...added];
   }
   // Unknown or unmanaged fields from an existing file stay as they were (validation reports them).
   for (const [k, v] of Object.entries(rest)) if (!(k in out) && k !== "placeholder") out[k] = v;
