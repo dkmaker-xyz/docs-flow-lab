@@ -48,7 +48,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$BRANCH" --jq .object.sha 2>/dev/null || true)
+          # gh prints the error body on stdout for a 404, so accept only a commit SHA.
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$BRANCH" --jq .object.sha 2>/dev/null) || sha=""
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || sha=""
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           if [ -z "$sha" ]; then echo "Branch $BRANCH no longer exists; its index is removed by the remove workflow."; fi
 
