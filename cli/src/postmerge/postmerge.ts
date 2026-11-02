@@ -22,6 +22,8 @@ export interface Edit {
   key: string;
   add: Relation[];
   state?: string;
+  /** Other fields the bot sets (for example a REL's phase). */
+  set?: Record<string, unknown>;
   /** Human summary of what the edit does and why. */
   reasons: string[];
 }
@@ -106,18 +108,79 @@ export function applyEdit(text: string, edit: Edit): string {
     fm.state = edit.state;
     changed = true;
   }
+  for (const [k, v] of Object.entries(edit.set ?? {})) {
+    if (fm[k] !== v) {
+      fm[k] = v;
+      changed = true;
+    }
+  }
   if (!changed) return text;
   const { relations: _old, ...rest } = fm;
   return renderDocument({ ...rest, relations: rels }, p.body);
 }
 
+/** A ref change the bot makes after its commit. */
+export type Action = { kind: "create-branch"; branch: string; from: string; reason: string } | { kind: "delete-branch"; branch: string; reason: string };
+
+const RELEASE_BRANCH_RE = /^release\/(v[0-9]+\.[0-9]+\.[0-9]+)$/;
+
+/** The branch a merge commit merged, from GitHub's message or from a release branch whose tip is the second parent. */
+export function mergedBranch(root: string, after: string): string | undefined {
+  const git = (...a: string[]) => {
+    try {
+      return execFileSync("git", a, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    } catch {
+      return undefined;
+    }
+  };
+  const parents = (git("rev-list", "--parents", "-n1", after) ?? "").split(" ").slice(1);
+  if (parents.length < 2) return undefined;
+  const subject = git("log", "-1", "--format=%s", after) ?? "";
+  const m = /^Merge pull request #[0-9]+ from [^/\s]+\/(\S+)$/.exec(subject);
+  if (m) return m[1];
+  const refs = (git("for-each-ref", "--format=%(refname:short) %(objectname)", "refs/remotes/origin/release/", "refs/heads/release/") ?? "").split("\n").filter(Boolean);
+  const hit = refs.map((l) => l.split(" ")).find(([, sha]) => sha === parents[1]);
+  return hit?.[0]?.replace(/^origin\//, "");
+}
+
 /**
- * Hooks for the release lifecycle (phase 6): planned → development and
- * release-branch creation after a REL merge, release-branch deletion after a
- * release merge. Not implemented yet; returns no actions.
+ * The release lifecycle after a push to a truth branch (spec 7.2, 7.5):
+ * - a REL merged to main with phase planned: set phase development and
+ *   create release/<version> from main (after the bot's commit);
+ * - release/vX.Y.Z merged into main: delete release/vX.Y.Z. A merge into a
+ *   release branch, or between release branches, never deletes anything.
  */
-export function releaseHooks(_docs: Map<string, Doc>, _changed: Set<string> | "all", _branch: string): string[] {
-  return [];
+export function releaseHooks(docs: Map<string, Doc>, changed: Set<string> | "all", branch: string, root?: string, after?: string): { edits: Edit[]; actions: Action[] } {
+  const edits: Edit[] = [];
+  const actions: Action[] = [];
+  if (branch !== "main") return { edits, actions };
+  for (const d of docs.values()) {
+    if (changed !== "all" && !changed.has(d.file)) continue;
+    if (!d.key.startsWith("REL-") || d.fm.phase !== "planned" || typeof d.fm.version !== "string") continue;
+    edits.push({ file: d.file, key: d.key, add: [], set: { phase: "development" }, reasons: ["phase development"] });
+    actions.push({ kind: "create-branch", branch: `release/${d.fm.version}`, from: "main", reason: `${d.key} (${d.fm.version}) was merged with phase planned` });
+  }
+  if (root && after) {
+    const merged = mergedBranch(root, after);
+    if (merged && RELEASE_BRANCH_RE.test(merged)) actions.push({ kind: "delete-branch", branch: merged, reason: `${merged} was merged into main` });
+  }
+  return { edits, actions };
+}
+
+/** Merges edits for the same document. */
+function combine(edits: Edit[]): Edit[] {
+  const byKey = new Map<string, Edit>();
+  for (const e of edits) {
+    const cur = byKey.get(e.key);
+    if (!cur) byKey.set(e.key, { ...e, add: [...e.add], reasons: [...e.reasons], set: { ...e.set } });
+    else {
+      cur.add.push(...e.add);
+      cur.reasons.push(...e.reasons);
+      cur.state = e.state ?? cur.state;
+      cur.set = { ...cur.set, ...e.set };
+    }
+  }
+  return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
 export interface PostMergeResult {
@@ -126,6 +189,8 @@ export interface PostMergeResult {
   /** Findings of the tree with the edits applied; the bot commits only when empty. */
   findings: Finding[];
   commit?: string;
+  /** Ref changes (release branches); `done` once made. */
+  actions: (Action & { done?: boolean; skipped?: string })[];
   /** "nothing" when no edit was needed (also after a concurrent run did them). */
   outcome: "nothing" | "committed" | "dry-run" | "invalid";
 }
@@ -158,25 +223,51 @@ export async function postMerge(opts: {
   maxAttempts?: number;
 }): Promise<PostMergeResult> {
   const loaded = loadConfig(opts.root);
-  if (!loaded.config) return { changed: [], edits: [], findings: loaded.findings, outcome: "invalid" };
+  if (!loaded.config) return { changed: [], edits: [], actions: [], findings: loaded.findings, outcome: "invalid" };
   const docs = readTree(opts.root, loaded.config);
   const changed = changedFiles(opts.root, opts.before, opts.after);
-  releaseHooks(docs, changed, opts.branch);
-  const edits = planEdits(docs, changed);
+  const hooks = releaseHooks(docs, changed, opts.branch, opts.root, opts.after);
+  const edits = combine([...planEdits(docs, changed), ...hooks.edits]);
+  const actions: PostMergeResult["actions"] = hooks.actions;
   const changedList = changed === "all" ? "all" : [...changed].sort();
-  if (edits.length === 0) return { changed: changedList, edits, findings: [], outcome: "nothing" };
+  if (edits.length === 0 && actions.length === 0) return { changed: changedList, edits, actions, findings: [], outcome: "nothing" };
 
   // The tree with the edits must validate clean before the bot writes anything.
   for (const e of edits) writeFileSync(join(opts.root, e.file), applyEdit(readFileSync(join(opts.root, e.file), "utf8"), e));
   const findings = validateTree(opts.root).findings;
-  if (findings.length) return { changed: changedList, edits, findings, outcome: "invalid" };
-  if (opts.dryRun || !opts.client) return { changed: changedList, edits, findings, outcome: "dry-run" };
+  if (findings.length) return { changed: changedList, edits, actions, findings, outcome: "invalid" };
+  if (opts.dryRun || !opts.client) return { changed: changedList, edits, actions, findings, outcome: "dry-run" };
 
   const client = opts.client;
+  const committed = edits.length ? await commitEdits(client, opts.branch, edits, opts.maxAttempts) : undefined;
+  for (const a of actions) {
+    if (a.kind === "create-branch") {
+      if (await branchHead(client, a.branch)) {
+        a.skipped = "exists";
+        continue;
+      }
+      const from = await branchHead(client, a.from);
+      if (!from) throw new GitHubError(404, `${a.from} does not exist`, "Nothing to do.", `GET git/ref/heads/${a.from}`);
+      await client.request("POST", client.repoPath("/git/refs"), { body: { ref: `refs/heads/${a.branch}`, sha: from } });
+      a.done = true;
+    } else {
+      const del = await client.request("DELETE", client.repoPath(`/git/refs/heads/${encodePath(a.branch)}`), { allow: [404, 422] });
+      if (del.status === 422 && (await branchHead(client, a.branch))) throw new GitHubError(422, `deleting ${a.branch} was rejected`, "Check that the bot may bypass the truth-branches ruleset.", `DELETE git/refs/heads/${a.branch}`);
+      if (del.status === 404 || del.status === 422) a.skipped = "already deleted";
+      else a.done = true;
+    }
+  }
+  const did = actions.some((a) => a.done);
+  if (!committed && !did) return { changed: changedList, edits, actions, findings, outcome: "nothing" };
+  return { changed: changedList, edits, actions, findings, commit: committed, outcome: "committed" };
+}
+
+/** Commits edits on the branch head (re-applied to the head's files); undefined when nothing changed. */
+async function commitEdits(client: GitHubClient, branch: string, edits: Edit[], maxAttempts = 5): Promise<string | undefined> {
   const message = `Post-merge: ${edits.map((e) => `${e.key} ← ${e.reasons.join(", ")}`).join("; ")}`;
-  for (let attempt = 1; attempt <= (opts.maxAttempts ?? 5); attempt++) {
-    const head = await branchHead(client, opts.branch);
-    if (!head) throw new GitHubError(404, `branch ${opts.branch} no longer exists`, "Nothing to do.", `GET git/ref/heads/${opts.branch}`);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const head = await branchHead(client, branch);
+    if (!head) throw new GitHubError(404, `branch ${branch} no longer exists`, "Nothing to do.", `GET git/ref/heads/${branch}`);
     // Apply the edits to the files as they are at the head now (another merge may have landed).
     const changes: FileChange[] = [];
     for (const e of edits) {
@@ -185,11 +276,11 @@ export async function postMerge(opts: {
       const next = applyEdit(current.text(), e);
       if (next !== current.text()) changes.push({ path: e.file, content: next });
     }
-    if (changes.length === 0) return { changed: changedList, edits, findings, outcome: "nothing" };
+    if (changes.length === 0) return undefined;
     const sha = await buildCommit(client, head, changes, message);
-    const moved = await client.request("PATCH", client.repoPath(`/git/refs/heads/${encodePath(opts.branch)}`), { body: { sha, force: false }, allow: [422] });
-    if (moved.status !== 422) return { changed: changedList, edits, findings, commit: sha, outcome: "committed" };
+    const moved = await client.request("PATCH", client.repoPath(`/git/refs/heads/${encodePath(branch)}`), { body: { sha, force: false }, allow: [422] });
+    if (moved.status !== 422) return sha;
     // 422: the branch moved since we read it; retry on the new head.
   }
-  throw new GitHubError(409, `could not commit the post-merge edits to ${opts.branch}`, "Run the post-merge workflow again.", `PATCH git/refs/heads/${opts.branch}`);
+  throw new GitHubError(409, `could not commit the post-merge edits to ${branch}`, "Run the post-merge workflow again.", `PATCH git/refs/heads/${branch}`);
 }

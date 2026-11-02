@@ -41,7 +41,7 @@ describe("index build", () => {
     const adr1 = idx.documents.find((d) => d.id === "ADR-0001")!;
     assert.deepEqual(
       { type: adr1.type, path: adr1.path, slug: adr1.slug, state: adr1.state, category: adr1.category, featured: adr1.featured, pending: adr1.pending, releases: adr1.releases, mergedBy: adr1.mergedBy },
-      { type: "adr", path: "docs/adr/0001-store-data-in-postgresql.md", slug: "store-data-in-postgresql", state: "accepted", category: "data", featured: true, pending: false, releases: [], mergedBy: null },
+      { type: "adr", path: "docs/adr/0001-store-data-in-postgresql.md", slug: "store-data-in-postgresql", state: "accepted", category: "data", featured: true, pending: false, releases: ["main"], mergedBy: null },
     );
     assert.equal(adr1.commit!.sha, idx.sourceSha);
     // outgoing: forward relations only (the amended-by inverse entry is not repeated)
@@ -99,6 +99,20 @@ describe("index build", () => {
     const adr2 = idx.documents.find((d) => d.id === "ADR-0002")!;
     assert.equal(adr2.commit!.sha, bot);
     assert.equal(adr2.mergedBy, "alice");
+  });
+
+  test("releases lists the truth branches and v* tags a document exists on", async () => {
+    const root = gitRepo();
+    execFileSync("git", ["tag", "v0.1.0"], { cwd: root });
+    execFileSync("git", ["branch", "release/v0.2.0"], { cwd: root });
+    execFileSync("git", ["checkout", "-q", "release/v0.2.0"], { cwd: root });
+    writeFileSync(join(root, "docs/adr/0003-new.md"), "---\nid: ADR-0003\ntitle: New\n---\nx\n");
+    execFileSync("git", ["add", "-A"], { cwd: root });
+    commit(root, "new on the release branch");
+    execFileSync("git", ["branch", "v0.2.0/work"], { cwd: root });
+    const idx = await buildIndex({ root, branch: "release/v0.2.0", git: localGit(root) });
+    assert.deepEqual(idx.documents.find((d) => d.id === "ADR-0001")!.releases, ["main", "release/v0.2.0", "v0.1.0"]);
+    assert.deepEqual(idx.documents.find((d) => d.id === "ADR-0003")!.releases, ["release/v0.2.0"]);
   });
 
   test("pendingBase follows the base-branch rule", () => {

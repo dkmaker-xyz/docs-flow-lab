@@ -33,12 +33,16 @@ export interface DocFields {
   license?: string;
   lastReview?: string;
   reviewIntervalMonths?: number;
+  /** Type fields set as they are, after the managed ones (for example REL fields). */
+  extra?: Record<string, unknown>;
 }
 
 export interface BranchOptions {
   version?: string;
   /** Existing work branch to add to. */
   branch?: string;
+  /** Fixed base branch instead of the derived one (a new REL always goes to main). */
+  base?: string;
 }
 
 export interface WriteOk {
@@ -85,6 +89,7 @@ async function resolveTarget(client: GitHubClient, repo: DocRepo, opts: BranchOp
   }
   if (!version) return refuse("no --version given", "Pass the version the change belongs to, for example `--version v1.0.1`.");
   if (!parseVersion(version)) return refuse(`\`${version}\` is not a version like v1.0.1`, "Use a full version vMAJOR.MINOR.PATCH.");
+  if (opts.base) return { version, base: opts.base, existing: opts.branch };
   const base = await baseBranchFor(client, version);
   if (!base.ok) return refuse(base.message, base.nextAction);
   return { version, base: base.base, existing: opts.branch };
@@ -114,6 +119,7 @@ function buildFields(kind: Kind, id: string | undefined, f: DocFields, existing:
     out.last_review = pick(f.lastReview, "last_review") ?? new Date().toISOString().slice(0, 10);
     out.review_interval_months = pick(f.reviewIntervalMonths, "review_interval_months");
   }
+  for (const [k, v] of Object.entries(f.extra ?? {})) out[k] = v;
   // Unknown or unmanaged fields from an existing file stay as they were (validation reports them).
   for (const [k, v] of Object.entries(rest)) if (!(k in out) && k !== "placeholder") out[k] = v;
   return out;

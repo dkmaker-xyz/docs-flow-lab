@@ -2,8 +2,10 @@ name: Documentation post-merge
 
 # The bot's follow-up after a merge into a truth branch (spec 4.3, 7.5):
 # inverse relations in the target documents and their target state, in one
-# bot commit on the branch. Releases (phases, branch creation and deletion)
-# follow in phase 6.
+# bot commit on the branch. Releases (spec 7.2): a REL merged to main with
+# phase planned gets phase development, and the bot creates release/vX.Y.Z
+# from main; a merge of release/vX.Y.Z into main deletes that branch. Merges
+# into release branches never delete anything.
 #
 # Runs on push to main and release/*. Both are truth branches: their workflow
 # file and cli/ only change through reviewed, merged PRs, so the CLI is built

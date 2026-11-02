@@ -21,6 +21,8 @@ export interface GitInfo {
   changedSince(base: string): Set<string>;
   /** The newest commits that touched a path, newest first. */
   commitsFor?(path: string, limit: number): string[];
+  /** For each path under docs/ and code/: the truth branches (main, release/*) and v* tags it exists on. */
+  releaseRefs?(): Map<string, string[]>;
 }
 
 export function localGit(root: string): GitInfo {
@@ -51,6 +53,23 @@ export function localGit(root: string): GitInfo {
     },
     tags: () => git("tag", "--list", "v*").split("\n").filter(Boolean),
     branchExists: (name) => ref(name) !== undefined,
+    releaseRefs: () => {
+      const out = new Map<string, string[]>();
+      const refs = git("for-each-ref", "--format=%(refname)", "refs/remotes/origin/main", "refs/remotes/origin/release/", "refs/heads/main", "refs/heads/release/", "refs/tags/")
+        .split("\n")
+        .filter(Boolean);
+      const names = new Map<string, string>();
+      for (const r of refs) {
+        const name = r.replace(/^refs\/(remotes\/origin|heads|tags)\//, "");
+        if (TRUTH_RE.test(name) || /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(name)) if (!names.has(name) || r.startsWith("refs/remotes/")) names.set(name, r);
+      }
+      for (const [name, ref] of [...names].sort(([a], [b]) => a.localeCompare(b))) {
+        for (const path of git("ls-tree", "-r", "--name-only", ref, "--", "docs", "code").split("\n").filter(Boolean)) {
+          out.set(path, [...(out.get(path) ?? []), name]);
+        }
+      }
+      return out;
+    },
     commitsFor: (path, limit) => git("log", `-n${limit}`, "--format=%H", "--", path).split("\n").filter(Boolean),
     changedSince: (base) => {
       const r = ref(base);
@@ -118,6 +137,7 @@ export async function buildIndex(opts: BuildOptions): Promise<BranchIndex> {
   const base = pendingBase(branch, git);
   const changed = base ? git.changedSince(base) : new Set<string>();
   const commits = git.latestCommits();
+  const releaseRefs = git.releaseRefs ? git.releaseRefs() : new Map<string, string[]>();
   const skipped: BranchIndex["skipped"] = [];
   const docs: IndexDocument[] = [];
 
@@ -158,7 +178,7 @@ export async function buildIndex(opts: BuildOptions): Promise<BranchIndex> {
       placeholder: fm.placeholder === true,
       pending: changed.has(path),
       relations: { outgoing, incoming: [] },
-      releases: [],
+      releases: releaseRefs.get(path) ?? [],
       commit,
       mergedBy: commit && opts.mergedBy ? await mergedByFor(path, commit.sha, git, opts.mergedBy) : null,
     });

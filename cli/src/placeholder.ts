@@ -12,6 +12,7 @@ export function placeholderMarkdown(version: string): string {
     "## Commands",
     "",
     "- `idc365-decisions adr|proc|tech|code`: what the type is, how to write it, and its verbs (`create`, `update`, `show`, `list`).",
+    "- `idc365-decisions release`: releases, which release the current code branch belongs to, and tags.",
     "- `idc365-decisions setup`: check the link file and the token.",
     "- `idc365-decisions validate [path] [--json]`: validate a documentation tree on disk.",
     "",
