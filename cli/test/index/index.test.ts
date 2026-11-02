@@ -106,10 +106,12 @@ describe("index build", () => {
 const sample = (branch: string, sourceSha = "a".repeat(40)): BranchIndex => ({ schema: 1, branch, sourceSha, generatedAt: "2026-11-02T00:00:00.000Z", base: null, documents: [], skipped: [] });
 
 describe("index publish and delete", () => {
+  const at = (r: FakeRepo, branch: string) => sample(branch, r.refs.get(`heads/${branch}`)!);
+
   test("creates meta/index as an orphan branch with the file", async () => {
     const r = new FakeRepo();
     r.seed("main", { "README.md": "x" });
-    const res = await publishIndex(r.client(), sample("main"), noSleep);
+    const res = await publishIndex(r.client(), at(r, "main"), noSleep);
     assert.deepEqual(res, { path: "main.json", outcome: "created-branch", retries: 0 });
     assert.deepEqual(JSON.parse(r.files("meta/index").get("main.json")!).branch, "main");
     assert.deepEqual(r.head("meta/index")!.parents, []);
@@ -119,11 +121,20 @@ describe("index publish and delete", () => {
     r.seed("meta/index", { "main.json": "{}" });
     r.seed("main", { "README.md": "x" });
     r.seed("v1.0.1/x", {}, "main");
-    await publishIndex(r.client(), sample("v1.0.1/x"), noSleep);
-    await publishIndex(r.client(), sample("main", "b".repeat(40)), noSleep);
+    assert.equal((await publishIndex(r.client(), at(r, "v1.0.1/x"), noSleep)).outcome, "written");
+    assert.equal((await publishIndex(r.client(), at(r, "main"), noSleep)).outcome, "written");
     assert.deepEqual([...r.files("meta/index").keys()].sort(), ["main.json", "v1.0.1__x.json"]);
-    assert.equal(JSON.parse(r.files("meta/index").get("main.json")!).sourceSha, "b".repeat(40));
-    assert.match(r.head("meta/index")!.message, /^Index main at bbbbbbb$/);
+    assert.equal(JSON.parse(r.files("meta/index").get("main.json")!).sourceSha, r.refs.get("heads/main"));
+    assert.match(r.head("meta/index")!.message, /^Index main at [0-9a-f]{7}$/);
+  });
+  test("an index of an older commit is not published (newest push wins)", async () => {
+    const r = new FakeRepo();
+    r.seed("meta/index", { "main.json": "{}" });
+    const old = r.seed("main", { "README.md": "x" });
+    r.seed("main", { "README.md": "y" });
+    const res = await publishIndex(r.client(), sample("main", old), noSleep);
+    assert.equal(res.outcome, "skipped-superseded");
+    assert.equal(r.files("meta/index").get("main.json"), "{}");
   });
   test("retries on 409 and stops on a ruleset rejection", async () => {
     const r = new FakeRepo();
@@ -131,21 +142,35 @@ describe("index publish and delete", () => {
     r.seed("main", { "README.md": "x" });
     let n = 0;
     r.mock.on("PUT", `${R}/contents/main.json`, () => (++n === 1 ? { status: 409, body: { message: "main.json does not match" } } : { status: 200, body: {} }));
-    assert.equal((await publishIndex(r.client(), sample("main"), noSleep)).retries, 1);
+    assert.equal((await publishIndex(r.client(), at(r, "main"), noSleep)).retries, 1);
     r.mock.on("PUT", `${R}/contents/main.json`, { status: 409, body: { message: "Repository rule violations found\n\nCannot update this protected ref.\n" } });
-    await assert.rejects(publishIndex(r.client(), sample("main"), noSleep), (e: unknown) => e instanceof GitHubError && /rejected/.test(e.message) && /Only the bot/.test(e.nextAction));
+    await assert.rejects(publishIndex(r.client(), at(r, "main"), noSleep), (e: unknown) => e instanceof GitHubError && /rejected/.test(e.message) && /Only the bot/.test(e.nextAction));
   });
-  test("a branch deleted meanwhile is skipped, not published", async () => {
+  test("a deleted branch is not published, and a leftover index is removed", async () => {
+    const r = new FakeRepo();
+    r.seed("meta/index", { "main.json": "{}", "v1.0.1__gone.json": "{}" });
+    assert.equal((await publishIndex(r.client(), sample("v1.0.1/gone"), noSleep)).outcome, "skipped-deleted");
+    assert.deepEqual([...r.files("meta/index").keys()], ["main.json"]);
+  });
+  test("a branch deleted during the write gets its index removed again", async () => {
     const r = new FakeRepo();
     r.seed("meta/index", { "main.json": "{}" });
-    assert.equal((await publishIndex(r.client(), sample("v1.0.1/gone"), noSleep)).outcome, "skipped");
+    r.seed("main", { "README.md": "x" });
+    r.seed("v1.0.1/x", {}, "main");
+    const idx = at(r, "v1.0.1/x");
+    const put = (r as unknown as { putContents: (c: unknown) => unknown }).putContents.bind(r);
+    r.mock.on("PUT", `${R}/contents/v1.0.1__x.json`, (c) => {
+      r.refs.delete("heads/v1.0.1/x"); // the branch is deleted while this run publishes
+      return put(c) as never;
+    });
+    assert.equal((await publishIndex(r.client(), idx, noSleep)).outcome, "removed-deleted");
     assert.deepEqual([...r.files("meta/index").keys()], ["main.json"]);
   });
   test("a rejected branch creation is reported, not retried", async () => {
     const r = new FakeRepo();
     r.seed("main", { "README.md": "x" });
     r.mock.on("POST", `${R}/git/refs`, { status: 422, body: { message: "Reference update failed" } });
-    await assert.rejects(publishIndex(r.client(), sample("main"), noSleep), (e: unknown) => e instanceof GitHubError && /rejected/.test(e.message));
+    await assert.rejects(publishIndex(r.client(), at(r, "main"), noSleep), (e: unknown) => e instanceof GitHubError && /rejected/.test(e.message));
     assert.equal(r.mock.callsTo("POST", `${R}/git/refs`).length, 1);
   });
   test("delete removes the branch's file and is a no-op when missing", async () => {

@@ -1,13 +1,13 @@
 name: Documentation index
 
 # Rebuilds the index of a documentation branch on meta/index (spec 6.2, 7.5)
-# after every push, and removes it when the branch is deleted.
+# after every push. docs-index-remove.yml removes it when the branch is deleted.
 #
 # Security design:
 # - Pushes start the unprivileged "Documentation index trigger" workflow.
-#   This workflow reacts to it with `workflow_run`, and to `delete`; GitHub
-#   runs both from the default branch, so a pushed branch can never change
-#   the workflow that holds the bot key.
+#   This workflow reacts to it with `workflow_run`, which GitHub runs from
+#   the default branch, so a pushed branch can never change the workflow
+#   that holds the bot key.
 # - The pushed commit is checked out as data only: no npm ci and no scripts
 #   from it. The CLI is built from main's cli/, so only reviewed code runs
 #   with the bot token.
@@ -21,7 +21,6 @@ on:
   workflow_run:
     workflows: ["Documentation index trigger"]
     types: [completed]
-  delete:
 
 permissions:
   contents: read
@@ -29,13 +28,16 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     environment: bot
-    # One run per branch at a time, so an older run never overwrites a newer index.
+    # Newest push wins: a newer build of the same branch cancels an older one.
+    # Cancelling is safe because publishing is a single write, and publish
+    # writes only when the index's commit is still the branch head. Removes
+    # use their own group, so a build can never cancel a remove.
     concurrency:
-      group: docs-index-${{ github.event.workflow_run.head_branch }}
-      cancel-in-progress: false
+      group: docs-index-build-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: true
     steps:
       - name: CLI from main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -81,41 +83,3 @@ jobs:
         env:
           IDC365_DECISIONS_TOKEN: ${{ steps.bot.outputs.token }}
         run: node _cli/cli/dist/index.js index publish "$RUNNER_TEMP/index.json"
-
-  remove:
-    if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'meta/')
-    runs-on: ubuntu-24.04
-    environment: bot
-    concurrency:
-      group: docs-index-${{ github.event.ref }}
-      cancel-in-progress: false
-    steps:
-      - name: CLI from main
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: main
-          path: _cli
-          sparse-checkout: cli
-          persist-credentials: false
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "24"
-
-      - name: Build the CLI
-        working-directory: _cli/cli
-        run: npm ci && npm run build
-
-      - name: Bot token
-        id: bot
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
-        with:
-          client-id: ${{ vars.BOT_CLIENT_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
-          permission-contents: write
-
-      - name: Remove the index
-        env:
-          IDC365_DECISIONS_TOKEN: ${{ steps.bot.outputs.token }}
-          BRANCH: ${{ github.event.ref }}
-        run: node _cli/cli/dist/index.js index delete --branch "$BRANCH"
