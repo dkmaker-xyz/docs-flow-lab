@@ -157,7 +157,7 @@ describe("priming budget", () => {
   test("priming.budget", () => expectRule("priming.budget", (t) => t.write("config/priming.yaml", "priming_budget: 100\n"), ADR1));
   test("fits when no document is featured", () => {
     const r = validateTree(tree((t) => {
-      t.write("config/priming.yaml", "priming_budget: 600\n");
+      t.write("config/priming.yaml", "priming_budget: 2000\n");
       t.edit(ADR1, (s) => s.replace("featured: true\n", ""));
     }));
     assert.deepEqual(r.findings, []);

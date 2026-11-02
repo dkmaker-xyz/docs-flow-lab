@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { registerAttCommands } from "./commands/att-cmd.js";
 import { registerDocumentCommands } from "./commands/docs.js";
+import { registerHookCommands } from "./commands/hook-cmd.js";
 import { registerIndexCommands } from "./commands/index-cmd.js";
 import { registerPostMergeCommand } from "./commands/postmerge-cmd.js";
 import { registerReleaseCommands } from "./commands/release-cmd.js";
@@ -77,5 +78,6 @@ registerIndexCommands(program);
 registerPostMergeCommand(program);
 registerReleaseCommands(program);
 registerTechCheck(program);
+registerHookCommands(program, pkg.version);
 
 await program.parseAsync(process.argv);
