@@ -3,7 +3,7 @@ import {
   allocateIds,
   baseBranchFor,
   commitFiles,
-  createBranch,
+  createBranchWithCommit,
   formatId,
   GitHubError,
   openPullRequest,
@@ -180,9 +180,16 @@ async function publish(
   key: string,
 ): Promise<WriteOk | Refusal> {
   const branch = target.existing ?? `${target.version}/${branchSlug}`;
-  if (!target.existing) {
+  const changes: FileChange[] = [{ path: d.file, content: d.text }];
+  for (const p of d.placeholders.values()) changes.push({ path: p, content: placeholderDocument() });
+  const placeholderNote = d.placeholders.size ? ` (+ ${d.placeholders.size} placeholder shadow${d.placeholders.size === 1 ? "" : "s"})` : "";
+  let commit: { sha: string };
+  if (target.existing) {
+    commit = await commitFiles(client, branch, changes, `${summary}${placeholderNote}`);
+  } else {
+    // A new work branch is created at its first commit: one push, not two.
     try {
-      await createBranch(client, branch, target.base);
+      commit = await createBranchWithCommit(client, branch, target.base, changes, `${summary}${placeholderNote}`);
     } catch (err) {
       if (err instanceof GitHubError && err.status === 422) {
         return refuse(`work branch \`${branch}\` already exists`, `Add to it with \`--branch ${branch}\`, or change the title.`);
@@ -190,10 +197,6 @@ async function publish(
       throw err;
     }
   }
-  const changes: FileChange[] = [{ path: d.file, content: d.text }];
-  for (const p of d.placeholders.values()) changes.push({ path: p, content: placeholderDocument() });
-  const placeholderNote = d.placeholders.size ? ` (+ ${d.placeholders.size} placeholder shadow${d.placeholders.size === 1 ? "" : "s"})` : "";
-  const commit = await commitFiles(client, branch, changes, `${summary}${placeholderNote}`);
   const line = `- ${summary} (\`${d.file}\`)${placeholderNote}`;
 
   const open = target.existing ? await findOpenPr(client, branch) : undefined;

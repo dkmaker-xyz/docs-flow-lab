@@ -32,7 +32,7 @@ function repositoryFor(option: string | undefined): string | undefined {
   }
 }
 
-function clientFor(option: string | undefined): GitHubClient | { error: string; nextAction: string } {
+export function clientFor(option: string | undefined): GitHubClient | { error: string; nextAction: string } {
   const repository = repositoryFor(option);
   if (!repository) return { error: "no documentation repository", nextAction: "Pass --repository owner/repo (in Actions, GITHUB_REPOSITORY is used)." };
   const token = process.env[TOKEN_ENV]?.trim();

@@ -62,6 +62,18 @@ describe("adr create", () => {
     assert.equal(r.files("main").has(res.file), false, "main is untouched");
   });
 
+  test("a new work branch is created at its first commit: one ref write, no fast-forward", async () => {
+    const r = repo();
+    const mainHead = r.refs.get("heads/main")!;
+    const res = okResult(await createDocument(r.client(), KINDS.adr, ADR_FIELDS, BODY, { version: "v1.0.1" }));
+    const refPosts = r.mock.callsTo("POST", "/repos/acme/docs/git/refs").map((c) => (c.body as { ref: string }).ref);
+    assert.deepEqual(refPosts.filter((x) => x.startsWith("refs/heads/v1.0.1/")), [`refs/heads/${res.branch}`]);
+    assert.equal(r.mock.callsTo("PATCH", new RegExp(`/git/refs/heads/${res.branch.replace(/[./]/g, "\\$&")}$`)).length, 0);
+    const head = r.head(res.branch)!;
+    assert.deepEqual(head.parents, [mainHead], "the first commit sits directly on main");
+    assert.equal(r.refs.get(`heads/${res.branch}`), res.commit);
+  });
+
   test("expands macros into reference links, definitions and relations", async () => {
     const r = repo({ "docs/adr/0007-old-storage.md": existingAdr("0007", "old-storage"), "docs/techstack/0003-postgresql.md": "---\nid: TECH-0003\n---\n" });
     const body = `${BODY}\nThis replaces {{ADR:7|supersedes|the old storage decision}} and uses {{TECH:3|uses|the engine}}; ticket {{JIRA:IDC-9|asked for it}}.\n`;
