@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { renderDocument } from "../docs/compose.js";
 import { relativeLink } from "../docs/macros.js";
 import { classifyPath, INVERSE_OF, isRecord, loadConfig, parseYaml, splitFrontmatter, validateTree, type Config, type Finding, type Relation } from "../engine/index.js";
-import { branchHead, buildCommit, encodePath, GitHubError, readFile, type FileChange, type GitHubClient } from "../github/index.js";
+import { branchHead, buildCommit, compareVersions, encodePath, GitHubError, highestVersion, parseVersion, readFile, type FileChange, type GitHubClient } from "../github/index.js";
 import { markdownFiles } from "../index/build.js";
 
 /** Forward type → the inverse the bot writes into the target (spec 4.3). relates-to is its own inverse. */
@@ -115,14 +115,27 @@ export function applyEdit(text: string, edit: Edit): string {
     }
   }
   if (!changed) return text;
-  const { relations: _old, ...rest } = fm;
-  return renderDocument({ ...rest, relations: rels }, p.body);
+  // Keep relations where they were; do not add an empty list to a document that had none.
+  if (rels.length || Array.isArray(p.fm.relations)) fm.relations = rels;
+  return renderDocument(fm, p.body);
 }
 
 /** A ref change the bot makes after its commit. */
-export type Action = { kind: "create-branch"; branch: string; from: string; reason: string } | { kind: "delete-branch"; branch: string; reason: string };
+export type Action =
+  | { kind: "create-branch"; branch: string; from: string; reason: string }
+  | { kind: "delete-branch"; branch: string; reason: string }
+  | { kind: "create-tag"; tag: string; sha: string; reason: string };
 
 const RELEASE_BRANCH_RE = /^release\/(v[0-9]+\.[0-9]+\.[0-9]+)$/;
+
+/** Tag names in the checkout. */
+function localTags(root: string): string[] {
+  try {
+    return execFileSync("git", ["tag", "--list", "v*"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
 
 /** The branch a merge commit merged, from GitHub's message or from a release branch whose tip is the second parent. */
 export function mergedBranch(root: string, after: string): string | undefined {
@@ -160,7 +173,23 @@ export function releaseHooks(docs: Map<string, Doc>, changed: Set<string> | "all
     edits.push({ file: d.file, key: d.key, add: [], set: { phase: "development" }, reasons: ["phase development"] });
     actions.push({ kind: "create-branch", branch: `release/${d.fm.version}`, from: "main", reason: `${d.key} (${d.fm.version}) was merged with phase planned` });
   }
+  // Tags (spec 7.2): a merged release record (REL released, or a new entry in
+  // `patches`) gets its tag on the merge commit. Only versions above every
+  // existing tag; an existing tag means nothing to do.
   if (root && after) {
+    const tags = localTags(root);
+    const highest = highestVersion(tags);
+    for (const d of docs.values()) {
+      if (changed !== "all" && !changed.has(d.file)) continue;
+      if (!d.key.startsWith("REL-")) continue;
+      const versions = [...(d.fm.phase === "released" && typeof d.fm.version === "string" ? [d.fm.version] : []), ...(Array.isArray(d.fm.patches) ? d.fm.patches.filter((x): x is string => typeof x === "string") : [])];
+      for (const version of versions) {
+        const v = parseVersion(version);
+        if (!v || tags.includes(version) || (highest && compareVersions(v, highest) <= 0)) continue;
+        if (actions.some((a) => a.kind === "create-tag" && a.tag === version)) continue;
+        actions.push({ kind: "create-tag", tag: version, sha: after, reason: `${d.key} records ${version} as released` });
+      }
+    }
     const merged = mergedBranch(root, after);
     if (merged && RELEASE_BRANCH_RE.test(merged)) actions.push({ kind: "delete-branch", branch: merged, reason: `${merged} was merged into main` });
   }
@@ -249,6 +278,14 @@ export async function postMerge(opts: {
       const from = await branchHead(client, a.from);
       if (!from) throw new GitHubError(404, `${a.from} does not exist`, "Nothing to do.", `GET git/ref/heads/${a.from}`);
       await client.request("POST", client.repoPath("/git/refs"), { body: { ref: `refs/heads/${a.branch}`, sha: from } });
+      a.done = true;
+    } else if (a.kind === "create-tag") {
+      const exists = await client.request("GET", client.repoPath(`/git/ref/tags/${encodePath(a.tag)}`), { allow: [404] });
+      if (exists.status !== 404) {
+        a.skipped = "exists";
+        continue;
+      }
+      await client.request("POST", client.repoPath("/git/refs"), { body: { ref: `refs/tags/${a.tag}`, sha: a.sha } });
       a.done = true;
     } else {
       const del = await client.request("DELETE", client.repoPath(`/git/refs/heads/${encodePath(a.branch)}`), { allow: [404, 422] });

@@ -5,7 +5,9 @@ name: Documentation post-merge
 # bot commit on the branch. Releases (spec 7.2): a REL merged to main with
 # phase planned gets phase development, and the bot creates release/vX.Y.Z
 # from main; a merge of release/vX.Y.Z into main deletes that branch. Merges
-# into release branches never delete anything.
+# into release branches never delete anything. A merged release record
+# (`release tag vX.Y.Z`: REL released, or a new entry in `patches`) gets its
+# tag vX.Y.Z on the merge commit; an existing tag means nothing to do.
 #
 # Runs on push to main and release/*. Both are truth branches: their workflow
 # file and cli/ only change through reviewed, merged PRs, so the CLI is built

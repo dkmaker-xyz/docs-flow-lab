@@ -119,9 +119,10 @@ function buildFields(kind: Kind, id: string | undefined, f: DocFields, existing:
     out.last_review = pick(f.lastReview, "last_review") ?? new Date().toISOString().slice(0, 10);
     out.review_interval_months = pick(f.reviewIntervalMonths, "review_interval_months");
   }
-  for (const [k, v] of Object.entries(f.extra ?? {})) out[k] = v;
   // Unknown or unmanaged fields from an existing file stay as they were (validation reports them).
   for (const [k, v] of Object.entries(rest)) if (!(k in out) && k !== "placeholder") out[k] = v;
+  // Extra type fields replace existing ones in place; new ones go last.
+  for (const [k, v] of Object.entries(f.extra ?? {})) out[k] = v;
   return out;
 }
 

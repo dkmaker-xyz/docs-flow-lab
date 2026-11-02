@@ -8,8 +8,8 @@ import { parseYaml, splitFrontmatter } from "../src/engine/index.js";
 import { packageRoot } from "../src/engine/package-root.js";
 import { parseVersion } from "../src/github/index.js";
 import { postMerge } from "../src/postmerge/postmerge.js";
-import { createRelease, currentRelease, docsTagFor, mapRelease, parseRel, tagInstructions } from "../src/release/release.js";
-import { applyTag } from "../src/release/tag.js";
+import { createRelease, currentRelease, docsTagFor, mapRelease, parseRel } from "../src/release/release.js";
+import { recordRelease } from "../src/release/tag.js";
 import { FakeRepo } from "./docs/fakerepo.js";
 
 const CONFIG_DIR = join(packageRoot(), "test", "fixtures", "valid", "config");
@@ -70,6 +70,7 @@ describe("release map", () => {
     const res = await mapRelease(r.client(), "1", "idconnectdk/idc365", "release/2.0");
     assert.ok(res.ok, JSON.stringify(res));
     assert.deepEqual(fm(r.files(res.branch).get(res.file)!).code, [{ repo: "idconnectdk/idc365", branch: "release/2.0" }]);
+    assert.deepEqual(Object.keys(fm(r.files(res.branch).get(res.file)!)), ["id", "title", "description", "intent", "when", "state", "version", "phase", "docs_branch", "code"], "fields keep their place");
     assert.equal(res.base, "main");
     const same = await mapRelease(r.client(), "REL-0001", "idconnectdk/idc365", "old");
     assert.ok(!same.ok && /already maps/.test(same.message));
@@ -83,50 +84,43 @@ describe("release for and tag", () => {
     assert.equal(docsTagFor(parseVersion("v2.2.0")!, tags), "v2.2.0");
     assert.equal(docsTagFor(parseVersion("v0.9.0")!, tags), undefined);
   });
-  test("tag: validates and prints how a human starts the workflow; never dispatches", async () => {
-    const r = repo({ "docs/release/0001-release-v2-0-0.md": rel("0001", "v2.0.0", "development") });
-    r.tag("v1.0.0");
-    const ok = await tagInstructions(r.client(), "v2.0.0");
-    assert.ok(ok.ok);
-    assert.equal(ok.rel, "REL-0001");
-    assert.equal(ok.command, "gh workflow run docs-tag.yml --repo acme/docs --ref main -f version=v2.0.0");
-    assert.equal(ok.url, "https://github.com/acme/docs/actions/workflows/docs-tag.yml");
-    const low = await tagInstructions(r.client(), "v1.0.0");
-    assert.equal(low.ok, false);
-    assert.equal(r.mock.calls.filter((c) => c.method !== "GET").length, 0, "no writes, no workflow dispatch");
-    assert.equal(r.mock.calls.some((c) => c.path.includes("/actions/")), false);
-  });
 });
 
-describe("tag workflow: apply-tag", () => {
-  test("sets released (with date) and retires the previous release in one commit, then tags it", async () => {
+describe("release tag: record the release in a PR", () => {
+  test("a planned release: REL released (with date), previous released REL retired, one PR to main; no tag, no workflow", async () => {
     const r = repo({ "docs/release/0001-release-v1-0-0.md": rel("0001", "v1.0.0", "released"), "docs/release/0002-release-v2-0-0.md": rel("0002", "v2.0.0", "development") });
     r.tag("v1.0.0");
-    const res = await applyTag(r.client(), "v2.0.0", "2026-11-02");
-    assert.equal(res.released, "REL-0002");
-    assert.deepEqual(res.retired, ["REL-0001"]);
-    const files = r.files("main");
+    const res = await recordRelease(r.client(), "v2.0.0", "2026-11-02");
+    assert.ok(res.ok, JSON.stringify(res));
+    assert.deepEqual([res.kind, res.rel, res.retired, res.branch], ["release", "REL-0002", ["REL-0001"], "v2.0.0/release-v2-0-0"]);
+    const files = r.files(res.branch);
     assert.deepEqual([fm(files.get("docs/release/0002-release-v2-0-0.md")!).phase, fm(files.get("docs/release/0002-release-v2-0-0.md")!).released_date], ["released", "2026-11-02"]);
     assert.equal(fm(files.get("docs/release/0001-release-v1-0-0.md")!).phase, "retired");
-    assert.equal(r.refs.get("tags/v2.0.0"), res.commit);
-    assert.equal(r.refs.get("heads/main"), res.commit);
-    assert.equal(r.head("main")!.message, "Release v2.0.0: REL-0002 released, REL-0001 retired");
+    assert.equal(r.pulls[0]!.base, "main");
+    assert.equal(r.pulls[0]!.title, "Release v2.0.0: REL-0002 released, REL-0001 retired");
+    assert.equal(r.refs.has("tags/v2.0.0"), false, "the CLI never tags");
+    assert.equal(r.mock.calls.some((c) => c.path.includes("/actions/")), false, "no workflow is started");
+    assert.equal(fm(r.files("main").get("docs/release/0002-release-v2-0-0.md")!).phase, "development", "main changes only by the merge");
   });
-  test("a patch without its own REL changes no phases and tags the head", async () => {
+  test("a patch without its own REL is appended to patches of the production REL", async () => {
     const r = repo({ "docs/release/0001-release-v1-0-0.md": rel("0001", "v1.0.0", "released") });
     r.tag("v1.0.0");
-    const head = r.refs.get("heads/main");
-    const res = await applyTag(r.client(), "v1.0.1");
-    assert.equal(res.commit, undefined);
-    assert.equal(r.refs.get("tags/v1.0.1"), head);
-    assert.equal(fm(r.files("main").get("docs/release/0001-release-v1-0-0.md")!).phase, "released");
+    const res = await recordRelease(r.client(), "v1.0.1");
+    assert.ok(res.ok);
+    assert.deepEqual([res.kind, res.rel], ["patch", "REL-0001"]);
+    assert.deepEqual(fm(r.files(res.branch).get("docs/release/0001-release-v1-0-0.md")!).patches, ["v1.0.1"]);
   });
-  test("refuses a version that is not higher, or not strict", async () => {
-    const r = repo();
+  test("refuses a version that is not higher, not strict, or neither a REL nor a patch", async () => {
+    const r = repo({ "docs/release/0001-release-v1-0-0.md": rel("0001", "v1.0.0", "released") });
     r.tag("v1.0.0");
-    await assert.rejects(applyTag(r.client(), "v1.0.0"), /not higher/);
-    await assert.rejects(applyTag(r.client(), "v1.1"), /not a version/);
-    assert.equal(r.refs.has("tags/v1.1"), false);
+    for (const [v, re] of [["v1.0.0", /not higher/], ["v1.1", /not a version/], ["v1.2.0", /not a patch of the production release v1\.0\.0/]] as const) {
+      const res = await recordRelease(r.client(), v);
+      assert.ok(!res.ok && re.test(res.message), `${v}: ${JSON.stringify(res)}`);
+    }
+    const none = repo();
+    const res = await recordRelease(none.client(), "v0.1.1");
+    assert.ok(!res.ok && /no release is in production/.test(res.message));
+    assert.equal(r.pulls.length + none.pulls.length, 0);
   });
 });
 
@@ -161,8 +155,9 @@ describe("post-merge release hooks", () => {
     const r = await postMerge({ root, branch: "main", before, after: head, client: remote.client() });
     assert.equal(r.outcome, "committed");
     assert.equal(fm(remote.files("main").get("docs/release/0005-release-v0-2-0.md")!).phase, "development");
+    assert.equal("relations" in fm(remote.files("main").get("docs/release/0005-release-v0-2-0.md")!), false, "no empty relations list added");
     assert.equal(remote.refs.get("heads/release/v0.2.0"), remote.refs.get("heads/main"), "branch created after the phase commit");
-    assert.deepEqual(r.actions.map((a) => `${a.kind} ${a.branch} ${a.done ? "done" : a.skipped}`), ["create-branch release/v0.2.0 done"]);
+    assert.deepEqual(r.actions.map((a) => `${a.kind} ${"branch" in a ? a.branch : a.tag} ${a.done ? "done" : a.skipped}`), ["create-branch release/v0.2.0 done"]);
     // The same push again: nothing to do.
     const again = await postMerge({ root, branch: "main", before, after: head, client: remote.client() });
     assert.equal(again.outcome, "nothing");
@@ -190,10 +185,57 @@ describe("post-merge release hooks", () => {
     const remote = remoteFrom(root);
     remote.seed("release/v0.2.0", {}, "main");
     const r = await postMerge({ root, branch: "main", before, after: merge, client: remote.client() });
-    assert.deepEqual(r.actions.map((a) => `${a.kind} ${a.branch} ${a.done ? "done" : a.skipped}`), ["delete-branch release/v0.2.0 done"]);
+    assert.deepEqual(r.actions.map((a) => `${a.kind} ${"branch" in a ? a.branch : a.tag} ${a.done ? "done" : a.skipped}`), ["delete-branch release/v0.2.0 done"]);
     assert.equal(remote.refs.has("heads/release/v0.2.0"), false);
     const into = await postMerge({ root, branch: "release/v0.3.0", before, after: merge, dryRun: true });
     assert.deepEqual(into.actions, []);
+  });
+});
+
+describe("post-merge tag hook", () => {
+  function merged(relText: string, tags: string[] = []) {
+    const root = join(temp, `tag-${Math.random().toString(36).slice(2)}`);
+    cpSync(join(packageRoot(), "test", "fixtures", "valid"), root, { recursive: true });
+    rmSync(join(root, "docs/release"), { recursive: true, force: true });
+    mkdirSync(join(root, "docs/release"), { recursive: true });
+    writeFileSync(join(root, "docs/release/0005-release-v0-2-0.md"), rel("0005", "v0.2.0", "development"));
+    git(root, "init", "-q", "-b", "main");
+    git(root, "add", "-A");
+    git(root, "commit", "-qm", "before");
+    for (const t of tags) git(root, "tag", t);
+    const before = git(root, "rev-parse", "HEAD");
+    writeFileSync(join(root, "docs/release/0005-release-v0-2-0.md"), relText);
+    git(root, "commit", "-qam", "Merge pull request #7 from acme/v0.2.0/release-v0-2-0");
+    const after = git(root, "rev-parse", "HEAD");
+    const files: Record<string, string> = {};
+    for (const p of git(root, "ls-files").split("\n")) files[p] = readFileSync(join(root, p), "utf8");
+    const remote = new FakeRepo();
+    remote.seed("main", files);
+    for (const t of tags) remote.tag(t);
+    return { root, before, after, remote };
+  }
+
+  test("a merged release record gets its tag on the merge commit; a rerun does nothing", async () => {
+    const { root, before, after, remote } = merged(rel("0005", "v0.2.0", "released").replace("phase: released\n", "phase: released\nreleased_date: 2026-11-02\n"), ["v0.1.0"]);
+    const r = await postMerge({ root, branch: "main", before, after, client: remote.client() });
+    assert.equal(r.outcome, "committed");
+    assert.deepEqual(r.actions.map((a) => `${a.kind} ${"tag" in a ? a.tag : a.branch} ${a.done ? "done" : a.skipped}`), ["create-tag v0.2.0 done"]);
+    assert.equal(remote.refs.get("tags/v0.2.0"), after, "on the merge commit");
+    const again = await postMerge({ root, branch: "main", before, after, client: remote.client() });
+    assert.equal(again.outcome, "nothing", "an existing tag means nothing to do");
+  });
+  test("a patch appended to patches gets its tag; an already tagged or lower version does not", async () => {
+    const { root, before, after, remote } = merged(rel("0005", "v0.2.0", "released").replace("phase: released\n", "phase: released\npatches:\n  - v0.1.5\n  - v0.2.1\n"), ["v0.2.0"]);
+    const r = await postMerge({ root, branch: "main", before, after, client: remote.client() });
+    assert.deepEqual(r.actions.map((a) => `${a.kind} ${"tag" in a ? a.tag : a.branch}`), ["create-tag v0.2.1"]);
+    assert.equal(remote.refs.get("tags/v0.2.1"), after);
+    assert.equal(remote.refs.has("tags/v0.1.5"), false);
+  });
+  test("no tag on a release branch, and none for a REL that is not released", async () => {
+    const a = merged(rel("0005", "v0.2.0", "released"));
+    assert.deepEqual((await postMerge({ root: a.root, branch: "release/v0.2.0", before: a.before, after: a.after, dryRun: true })).actions, []);
+    const b = merged(rel("0005", "v0.2.0", "development").replace("state: accepted", "state: accepted\nplanned_date: 2026-12-01"));
+    assert.deepEqual((await postMerge({ root: b.root, branch: "main", before: b.before, after: b.after, dryRun: true })).actions, []);
   });
 });
 

@@ -85,6 +85,15 @@
     },
     "released_date": {
       "$ref": "urn:idc365-decisions:frontmatter:common#/$defs/date"
+    },
+    "patches": {
+      "description": "Patch versions released on top of this release, vMAJOR.MINOR.PATCH.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+      }
     }
   }
 }
