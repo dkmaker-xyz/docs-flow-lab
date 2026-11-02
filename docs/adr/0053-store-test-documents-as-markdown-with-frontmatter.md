@@ -11,6 +11,10 @@ relations:
     target: ADR-0052
     why: frontmatter changes how test documents are stored
     link: ./0052-store-test-documents-as-markdown.md
+  - type: relates-to
+    target: ADR-0054
+    why: the decision this fix belongs to
+    link: ./0054-clarify-the-frontmatter-decision.md
 ---
 ## Context
 
