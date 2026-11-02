@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "cbd40833fef17b4fb08b0b88c972657e20acade7",
-  "generatedAt": "2026-11-02T22:59:32.659Z",
+  "sourceSha": "d9a32ed2941281acb2bfda9a7ca7663c92efc078",
+  "generatedAt": "2026-11-02T23:14:17.773Z",
   "base": null,
   "documents": [
     {
@@ -231,6 +231,168 @@
       "commit": {
         "sha": "6931b636fb24ed4421db7e48e094b3e7760722c8",
         "date": "2026-11-02T23:54:53+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "TECH-0001",
+      "type": "techstack",
+      "path": "docs/techstack/0001-react.md",
+      "slug": "react",
+      "title": "React",
+      "description": "Approved for the tech check test.",
+      "intent": "Approved React version for web apps.",
+      "when": "Phase 7 integration test only.",
+      "state": "accepted",
+      "category": "framework",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "7dced42c9f9e5c034097991123521279fdf77497",
+        "date": "2026-11-03T00:10:22+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "TECH-0002",
+      "type": "techstack",
+      "path": "docs/techstack/0002-typescript.md",
+      "slug": "typescript",
+      "title": "TypeScript",
+      "description": "Approved for the tech check test.",
+      "intent": "Approved TypeScript for the test apps.",
+      "when": "Phase 7 integration test only.",
+      "state": "accepted",
+      "category": "tooling",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "1437267fb4896378a6fc1f0f8aa394c6e427ffaf",
+        "date": "2026-11-03T00:10:29+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "TECH-0003",
+      "type": "techstack",
+      "path": "docs/techstack/0003-spring-boot.md",
+      "slug": "spring-boot",
+      "title": "Spring Boot",
+      "description": "Approved for the tech check test.",
+      "intent": "Approved Spring Boot for the test apps.",
+      "when": "Phase 7 integration test only.",
+      "state": "accepted",
+      "category": "framework",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "45068038df6bf6df8cb5753dfb9edcafbaf94b2d",
+        "date": "2026-11-03T00:10:35+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "TECH-0004",
+      "type": "techstack",
+      "path": "docs/techstack/0004-guava.md",
+      "slug": "guava",
+      "title": "Guava",
+      "description": "Approved for the tech check test.",
+      "intent": "Approved Guava for the test apps.",
+      "when": "Phase 7 integration test only.",
+      "state": "accepted",
+      "category": "library",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "b61f9bd0327170b247ce18535eac2a7d04b0ce07",
+        "date": "2026-11-03T00:10:42+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "TECH-0005",
+      "type": "techstack",
+      "path": "docs/techstack/0005-node-js-base-image.md",
+      "slug": "node-js-base-image",
+      "title": "Node.js base image",
+      "description": "Approved for the tech check test.",
+      "intent": "Approved Node.js base image for the test apps.",
+      "when": "Phase 7 integration test only.",
+      "state": "accepted",
+      "category": "ci",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "51b7ecb6decf8c69e27085135799c884e7028fd7",
+        "date": "2026-11-03T00:10:49+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "TECH-0006",
+      "type": "techstack",
+      "path": "docs/techstack/0006-nginx-base-image.md",
+      "slug": "nginx-base-image",
+      "title": "nginx base image",
+      "description": "Approved for the tech check test.",
+      "intent": "Approved nginx base image for the test apps.",
+      "when": "Phase 7 integration test only.",
+      "state": "accepted",
+      "category": "ci",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "8d1dbc311ecd9c194eeac1bee22beac94a6bab4b",
+        "date": "2026-11-03T00:10:56+01:00"
       },
       "mergedBy": "dkmaker"
     }
