@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "release/v0.2.0",
-  "sourceSha": "d326294a4aeef62583a1e39381b05880b4555fc0",
-  "generatedAt": "2026-11-02T22:38:52.619Z",
+  "sourceSha": "f29d43806019f8d34a63308ee11bb7241ce50175",
+  "generatedAt": "2026-11-02T22:45:40.023Z",
   "base": null,
   "documents": [
     {
@@ -60,9 +60,20 @@
             "type": "supersedes",
             "target": "ADR-0052",
             "why": "frontmatter changes how test documents are stored"
+          },
+          {
+            "type": "relates-to",
+            "target": "ADR-0054",
+            "why": "the decision this fix belongs to"
           }
         ],
-        "incoming": []
+        "incoming": [
+          {
+            "type": "relates-to",
+            "source": "ADR-0054",
+            "why": "the decision this fix belongs to"
+          }
+        ]
       },
       "releases": [
         "main",
@@ -70,8 +81,48 @@
         "v0.1.0"
       ],
       "commit": {
-        "sha": "9a556e54073a5ec10726ef0274042d2c1432400d",
-        "date": "2026-11-02T22:51:37+01:00"
+        "sha": "2341097a65c8d1986151e6758acc406733e7afcf",
+        "date": "2026-11-02T22:36:03Z"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "ADR-0054",
+      "type": "adr",
+      "path": "docs/adr/0054-clarify-the-frontmatter-decision.md",
+      "slug": "clarify-the-frontmatter-decision",
+      "title": "Clarify the frontmatter decision",
+      "description": "A patch-level clarification for the test.",
+      "intent": "Test 4.4: a fix on v0.1.1 merged to main.",
+      "when": "Phase 6 integration test only.",
+      "state": "accepted",
+      "category": "architecture",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [
+          {
+            "type": "relates-to",
+            "target": "ADR-0053",
+            "why": "the decision this fix belongs to"
+          }
+        ],
+        "incoming": [
+          {
+            "type": "relates-to",
+            "source": "ADR-0053",
+            "why": "the decision this fix belongs to"
+          }
+        ]
+      },
+      "releases": [
+        "main",
+        "release/v0.2.0"
+      ],
+      "commit": {
+        "sha": "3ea42dfb0d16ff6ac1adaddd8aaa2e9394fd72c4",
+        "date": "2026-11-02T23:18:11+01:00"
       },
       "mergedBy": "dkmaker"
     },
