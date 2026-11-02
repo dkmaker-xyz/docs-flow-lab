@@ -114,6 +114,12 @@ export class FakeRepo {
       this.refs.set(key, (c.body as { sha: string }).sha);
       return { body: {} };
     });
+    m.on("DELETE", /\/git\/refs\/heads\/.+$/, (c) => {
+      const key = c.path.replace(`${R}/git/refs/`, "");
+      if (!this.refs.has(key)) return { status: 422, body: { message: "Reference does not exist" } };
+      this.refs.delete(key);
+      return { status: 204 };
+    });
     m.on("GET", /\/git\/commits\/[0-9a-f]+$/, (c) => {
       const s = c.path.split("/").pop()!;
       const obj = this.commits.get(s);

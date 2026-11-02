@@ -30,7 +30,7 @@ export interface IndexDocument {
   pending: boolean;
   /** Outgoing: forward relations written in this document. Incoming: forward relations of other documents to it. */
   relations: { outgoing: IndexRelation[]; incoming: IndexRelation[] };
-  /** Branches and tags the document exists on; filled in phase 6. */
+  /** Truth branches (main, release/vX.Y.Z) and v* tags the document exists on, by path. */
   releases: string[];
   commit: { sha: string; date: string } | null;
   /** Login of the person who merged the PR of the latest commit, when there is one. */

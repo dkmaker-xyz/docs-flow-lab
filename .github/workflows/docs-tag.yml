@@ -1,0 +1,72 @@
+name: Documentation tag
+
+# Tags a release when the product is deployed (spec 7.2, 7.5). Started only
+# by a human (Run workflow in GitHub, or `gh workflow run docs-tag.yml --ref
+# main -f version=vX.Y.Z` with the person's own access); the CLI token has no
+# Actions permission and `release tag` only prints these instructions.
+#
+# It validates the version (strict semver, higher than every v* tag), sets
+# the REL of that version to `released` and the previously released REL to
+# `retired` in one bot commit on main, then the bot creates the tag on that
+# commit (the tag ruleset lets only the bot create v* tags).
+#
+# Runs only from main, with the bot key from the `bot` environment; the CLI
+# is built from main's cli/. Actions are pinned to commit SHAs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to tag, vMAJOR.MINOR.PATCH
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-tag
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: bot
+    steps:
+      - name: Check the version format
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::'$VERSION' is not a version like v1.2.0"
+            exit 1
+          fi
+
+      - name: CLI from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          sparse-checkout: cli
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - name: Build the CLI
+        working-directory: cli
+        run: npm ci && npm run build
+
+      - name: Bot token
+        id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.BOT_CLIENT_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Phases and tag
+        env:
+          IDC365_DECISIONS_TOKEN: ${{ steps.bot.outputs.token }}
+          VERSION: ${{ inputs.version }}
+        run: node cli/dist/index.js release apply-tag "$VERSION" | tee -a "$GITHUB_STEP_SUMMARY"

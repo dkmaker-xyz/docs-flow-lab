@@ -1,7 +1,7 @@
 import type { DocType } from "../engine/index.js";
 import type { IdPrefix } from "../github/index.js";
 
-export type Noun = "adr" | "proc" | "tech" | "code";
+export type Noun = "adr" | "proc" | "tech" | "code" | "release";
 
 export interface Kind {
   noun: Noun;
@@ -65,6 +65,19 @@ export const KINDS: Record<Noun, Kind> = {
       "Body: component-specific notes only; updates follow the shared update procedure.",
       ...SHARED,
       "A new major outside the range is an `update`; replacing the component is a new TECH with `supersedes`.",
+    ],
+  },
+  release: {
+    noun: "release",
+    type: "release",
+    folder: "release",
+    prefix: "REL",
+    name: "Release (REL)",
+    purpose: "One product version: its documentation branch, the code branch per repository, Jira fix version and dates. The released version is the highest vX.Y.Z tag.",
+    instruction: [
+      "Created with `release create vX.Y.Z` (phase `planned`); after the merge the bot creates `release/vX.Y.Z` and sets `development`; the tag workflow, started by a human, sets `released`.",
+      "Code branches are mapped with `release map`; the CLI never touches code repositories.",
+      ...SHARED,
     ],
   },
   code: {
