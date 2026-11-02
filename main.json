@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "6d9050bbbc094fa597496fb619792c907d04340d",
-  "generatedAt": "2026-11-02T22:16:14.406Z",
+  "sourceSha": "b197f97d21c712147bc74c3ab5065cb5444dcf9a",
+  "generatedAt": "2026-11-02T22:31:33.610Z",
   "base": null,
   "documents": [
     {
@@ -30,7 +30,9 @@
         ]
       },
       "releases": [
-        "main"
+        "main",
+        "release/v0.2.0",
+        "v0.1.0"
       ],
       "commit": {
         "sha": "0cb3e4e9001664fa6c81d1dfc7d51f5285d56766",
@@ -63,11 +65,41 @@
         "incoming": []
       },
       "releases": [
-        "main"
+        "main",
+        "release/v0.2.0",
+        "v0.1.0"
       ],
       "commit": {
         "sha": "9a556e54073a5ec10726ef0274042d2c1432400d",
         "date": "2026-11-02T22:51:37+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "REL-0001",
+      "type": "release",
+      "path": "docs/release/0001-release-v0-2-0.md",
+      "slug": "release-v0-2-0",
+      "title": "Release v0.2.0",
+      "description": "Documentation for product release v0.2.0.",
+      "intent": "What release v0.2.0 is and where its documentation and code live.",
+      "when": "When you work on v0.2.0.",
+      "state": "accepted",
+      "category": null,
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [],
+        "incoming": []
+      },
+      "releases": [
+        "main",
+        "release/v0.2.0"
+      ],
+      "commit": {
+        "sha": "b197f97d21c712147bc74c3ab5065cb5444dcf9a",
+        "date": "2026-11-02T22:31:16Z"
       },
       "mergedBy": "dkmaker"
     }
