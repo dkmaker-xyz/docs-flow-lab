@@ -1,0 +1,113 @@
+name: Documentation index
+
+# Rebuilds the index of a documentation branch on meta/index (spec 6.2, 7.5)
+# after every push, and removes it when the branch is deleted.
+#
+# The CLI is always built from main's cli/, never from the pushed branch, so
+# only reviewed code runs with the bot token. The bot token comes from the
+# GitHub App: repository variable BOT_APP_ID and secret BOT_PRIVATE_KEY.
+#
+# Actions are pinned to commit SHAs (tag in the comment) so a moved tag can
+# never change what runs with the bot token.
+
+on:
+  push:
+    branches-ignore:
+      - "meta/**"
+  delete:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  build:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # One run per branch at a time, in push order, so an older run never
+    # overwrites a newer index.
+    concurrency:
+      group: docs-index-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: CLI from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: _cli
+          sparse-checkout: cli
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - name: Build the CLI
+        working-directory: _cli/cli
+        run: npm ci && npm run build
+
+      - name: Pushed branch, with history, branches and tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: docs
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build the index
+        working-directory: docs
+        env:
+          # Read-only lookups (who merged a commit's PR) use the workflow token.
+          IDC365_DECISIONS_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: node ../_cli/cli/dist/index.js index build --branch "$BRANCH" --out "$RUNNER_TEMP/index.json"
+
+      - name: Bot token
+        id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Publish the index
+        env:
+          IDC365_DECISIONS_TOKEN: ${{ steps.bot.outputs.token }}
+        run: node _cli/cli/dist/index.js index publish "$RUNNER_TEMP/index.json"
+
+  remove:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'meta/')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docs-index-refs/heads/${{ github.event.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: CLI from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: _cli
+          sparse-checkout: cli
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - name: Build the CLI
+        working-directory: _cli/cli
+        run: npm ci && npm run build
+
+      - name: Bot token
+        id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Remove the index
+        env:
+          IDC365_DECISIONS_TOKEN: ${{ steps.bot.outputs.token }}
+          BRANCH: ${{ github.event.ref }}
+        run: node _cli/cli/dist/index.js index delete --branch "$BRANCH"
