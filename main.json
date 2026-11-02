@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "abe64b3e34ac0fa96dae51f4d54fd2dc04034048",
-  "generatedAt": "2026-11-02T23:29:22.626Z",
+  "sourceSha": "a830b4bf94de25d582f534bd678eb64793cf5a0b",
+  "generatedAt": "2026-11-02T23:34:59.356Z",
   "base": null,
   "documents": [
     {
@@ -163,6 +163,33 @@
       "commit": {
         "sha": "346c24026669cd35ad215a7c1147e7168a143d21",
         "date": "2026-11-02T23:33:32+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "ATT-0001",
+      "type": "attachment",
+      "path": "docs/attachment/0001-system-overview-diagram.md",
+      "slug": "system-overview-diagram",
+      "title": "System overview diagram",
+      "description": "Overview of the test system.",
+      "intent": "Shows the parts of the test system; test 5.1.",
+      "when": "Phase 8 integration test only.",
+      "state": "accepted",
+      "category": null,
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "80d474e7e556c7b8a5b85e771f9d1b04da550e7f",
+        "date": "2026-11-03T00:30:41+01:00"
       },
       "mergedBy": "dkmaker"
     },
