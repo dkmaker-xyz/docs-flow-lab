@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "0cb3e4e9001664fa6c81d1dfc7d51f5285d56766",
-  "generatedAt": "2026-11-02T21:57:16.877Z",
+  "sourceSha": "6d9050bbbc094fa597496fb619792c907d04340d",
+  "generatedAt": "2026-11-02T22:16:14.406Z",
   "base": null,
   "documents": [
     {
@@ -29,7 +29,9 @@
           }
         ]
       },
-      "releases": [],
+      "releases": [
+        "main"
+      ],
       "commit": {
         "sha": "0cb3e4e9001664fa6c81d1dfc7d51f5285d56766",
         "date": "2026-11-02T21:53:57Z"
@@ -60,7 +62,9 @@
         ],
         "incoming": []
       },
-      "releases": [],
+      "releases": [
+        "main"
+      ],
       "commit": {
         "sha": "9a556e54073a5ec10726ef0274042d2c1432400d",
         "date": "2026-11-02T22:51:37+01:00"
