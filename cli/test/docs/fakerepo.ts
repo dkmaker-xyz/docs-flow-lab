@@ -4,7 +4,7 @@
  */
 import { createHash } from "node:crypto";
 import { GitHubClient } from "../../src/github/index.js";
-import { MockGitHub, R, REPO, type Call } from "../github/mock.js";
+import { MockGitHub, R, REPO, type Call, type Reply } from "../github/mock.js";
 
 interface CommitObj {
   tree: Map<string, string>; // path -> blob sha
@@ -29,6 +29,8 @@ export class FakeRepo {
   readonly commits = new Map<string, CommitObj>();
   readonly refs = new Map<string, string>(); // "heads/main" -> sha
   readonly pulls: Pull[] = [];
+  /** Statuses of raw (index) reads, to check conditional requests. */
+  readonly rawReads: number[] = [];
   private seq = 0;
 
   constructor() {
@@ -140,6 +142,13 @@ export class FakeRepo {
     });
     m.on("GET", /\/git\/blobs\/[0-9a-f]+$/, (c) => ({ body: { content: this.blobs.get(c.path.split("/").pop()!)!.toString("base64"), encoding: "base64" } }));
     m.on("GET", /\/contents(\/.*)?$/, (c) => this.getContents(c));
+    m.on("GET", /^\/repos\/[^/]+\/[^/]+\/commits\/.+$/, (c) => {
+      if (/\/pulls$/.test(c.path)) return { body: [] };
+      const ref = c.path.replace(`${R}/commits/`, "");
+      const s = this.resolveRef(ref);
+      if (!s) return { status: 422, body: { message: `No commit found for SHA: ${ref}` } };
+      return c.headers.accept?.includes("sha") ? { raw: s, headers: { "content-type": "application/vnd.github.sha; charset=utf-8" } } : { body: { sha: s } };
+    });
     m.on("PUT", /\/contents\/.+$/, (c) => this.putContents(c));
     m.on("DELETE", /\/contents\/.+$/, (c) => this.deleteContents(c));
     m.on("POST", `${R}/pulls`, (c) => {
@@ -160,13 +169,19 @@ export class FakeRepo {
     });
   }
 
-  private getContents(c: Call) {
+  private getContents(c: Call): Reply {
     const path = c.path.replace(`${R}/contents`, "").replace(/^\//, "");
     const ref = c.query.get("ref") ?? "main";
     const commit = this.resolveRef(ref);
     if (!commit) return { status: 404, body: { message: "No commit found for the ref" } };
     const tree = this.commits.get(commit)!.tree;
     const blob = tree.get(path);
+    if (blob && c.headers.accept?.includes("raw")) {
+      const etag = `"${blob}"`;
+      this.rawReads.push(c.headers["if-none-match"] === etag ? 304 : 200);
+      if (c.headers["if-none-match"] === etag) return { status: 304, headers: { etag } };
+      return { raw: this.blobs.get(blob)!.toString("utf8"), headers: { etag, "content-type": "application/vnd.github.raw+json; charset=utf-8" } };
+    }
     if (blob) {
       const data = this.blobs.get(blob)!;
       return { body: { type: "file", path, sha: blob, size: data.length, encoding: "base64", content: data.toString("base64") } };

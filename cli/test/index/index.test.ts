@@ -117,6 +117,8 @@ describe("index publish and delete", () => {
   test("adds and updates files on an existing meta/index", async () => {
     const r = new FakeRepo();
     r.seed("meta/index", { "main.json": "{}" });
+    r.seed("main", { "README.md": "x" });
+    r.seed("v1.0.1/x", {}, "main");
     await publishIndex(r.client(), sample("v1.0.1/x"), noSleep);
     await publishIndex(r.client(), sample("main", "b".repeat(40)), noSleep);
     assert.deepEqual([...r.files("meta/index").keys()].sort(), ["main.json", "v1.0.1__x.json"]);
@@ -126,11 +128,18 @@ describe("index publish and delete", () => {
   test("retries on 409 and stops on a ruleset rejection", async () => {
     const r = new FakeRepo();
     r.seed("meta/index", { "main.json": "{}" });
+    r.seed("main", { "README.md": "x" });
     let n = 0;
     r.mock.on("PUT", `${R}/contents/main.json`, () => (++n === 1 ? { status: 409, body: { message: "main.json does not match" } } : { status: 200, body: {} }));
     assert.equal((await publishIndex(r.client(), sample("main"), noSleep)).retries, 1);
     r.mock.on("PUT", `${R}/contents/main.json`, { status: 409, body: { message: "Repository rule violations found\n\nCannot update this protected ref.\n" } });
     await assert.rejects(publishIndex(r.client(), sample("main"), noSleep), (e: unknown) => e instanceof GitHubError && /rejected/.test(e.message) && /Only the bot/.test(e.nextAction));
+  });
+  test("a branch deleted meanwhile is skipped, not published", async () => {
+    const r = new FakeRepo();
+    r.seed("meta/index", { "main.json": "{}" });
+    assert.equal((await publishIndex(r.client(), sample("v1.0.1/gone"), noSleep)).outcome, "skipped");
+    assert.deepEqual([...r.files("meta/index").keys()], ["main.json"]);
   });
   test("a rejected branch creation is reported, not retried", async () => {
     const r = new FakeRepo();
@@ -146,5 +155,70 @@ describe("index publish and delete", () => {
     assert.deepEqual([...r.files("meta/index").keys()], ["main.json"]);
     assert.match(r.head("meta/index")!.message, /Remove index of deleted branch v1\.0\.1\/x/);
     assert.equal(await deleteIndex(r.client(), "v9.9.9/none", noSleep), false);
+  });
+});
+
+describe("index reading", () => {
+  const { fetchIndex, cacheDir } = await_import();
+  function await_import() {
+    return { fetchIndex: async (...a: Parameters<typeof import("../../src/index/read.js").fetchIndex>) => (await import("../../src/index/read.js")).fetchIndex(...a), cacheDir: async (...a: Parameters<typeof import("../../src/index/read.js").cacheDir>) => (await import("../../src/index/read.js")).cacheDir(...a) };
+  }
+  const seeded = () => {
+    const r = new FakeRepo();
+    r.seed("main", { "README.md": "x", ...Object.fromEntries([["config/x.yaml", "a: 1\n"]]) });
+    const head = r.refs.get("heads/main")!;
+    const idx: BranchIndex = { ...sample("main", head), documents: [
+      { id: "ADR-0001", type: "adr", path: "docs/adr/0001-a.md", slug: "a", title: "A", description: "d", intent: "ia", when: "w", state: "accepted", category: "data", featured: false, placeholder: false, pending: false, relations: { outgoing: [], incoming: [] }, releases: [], commit: null, mergedBy: null },
+      { id: "ADR-0002", type: "adr", path: "docs/adr/0002-b.md", slug: "b", title: "B", description: "d", intent: "ib", when: "w", state: "deprecated", category: "api", featured: false, placeholder: false, pending: true, relations: { outgoing: [], incoming: [] }, releases: [], commit: null, mergedBy: null },
+      { id: "PROC-0001", type: "procedure", path: "docs/procedure/0001-p.md", slug: "p", title: "P", description: "d", intent: "ip", when: "w", state: "accepted", category: "development", featured: false, placeholder: false, pending: false, relations: { outgoing: [], incoming: [] }, releases: [], commit: null, mergedBy: null },
+    ] };
+    r.seed("meta/index", { "main.json": JSON.stringify(idx) });
+    return r;
+  };
+
+  test("the second read is a 304 from the ETag cache", async () => {
+    const r = seeded();
+    const dir = join(temp, "cache-304");
+    const first = await fetchIndex(r.client(), "main", dir);
+    const second = await fetchIndex(r.client(), "main", dir);
+    assert.equal(first.status, 200);
+    assert.equal(second.status, 304);
+    assert.deepEqual(r.rawReads, [200, 304]);
+    assert.equal(second.index!.documents.length, 3);
+    assert.equal(second.stale, false);
+    assert.equal(second.head, r.refs.get("heads/main"));
+  });
+
+  test("an index behind the branch head is stale; a missing one is 404", async () => {
+    const r = seeded();
+    r.seed("main", { "docs/adr/0003-c.md": "---\nid: ADR-0003\n---\n" });
+    const f = await fetchIndex(r.client(), "main", join(temp, "cache-stale"));
+    assert.equal(f.stale, true);
+    const none = await fetchIndex(r.client(), "v1.0.1/none", join(temp, "cache-none"));
+    assert.equal(none.status, 404);
+    assert.equal(none.index, undefined);
+  });
+
+  test("list uses the index with filters and pending, and falls back when stale or missing", async () => {
+    const { listFromIndexOrDirect } = await import("../../src/docs/read.js");
+    const { KINDS } = await import("../../src/docs/kinds.js");
+    const r = seeded();
+    const viaIndex = await listFromIndexOrDirect(r.client(), KINDS.adr, "main", { state: "deprecated" }, join(temp, "cache-list"));
+    assert.equal(viaIndex.source.kind, "index");
+    assert.deepEqual(viaIndex.documents.map((d) => `${d.id} ${d.pending}`), ["ADR-0002 true"]);
+    r.seed("main", { "docs/adr/0003-c.md": "---\nid: ADR-0003\ntitle: C\nstate: accepted\n---\n" });
+    const stale = await listFromIndexOrDirect(r.client(), KINDS.adr, "main", {}, join(temp, "cache-list"));
+    assert.deepEqual(stale.source.kind + " " + stale.source.reason, "direct stale");
+    assert.deepEqual(stale.documents.map((d) => d.id), ["ADR-0003"]);
+    const missing = await listFromIndexOrDirect(r.client(), KINDS.adr, "v1.0.1/x", {}, join(temp, "cache-list"));
+    assert.equal(missing.source.reason, "missing");
+  });
+
+  test("cache folder per platform", async () => {
+    assert.equal(await cacheDir({ XDG_CACHE_HOME: "/x" }, "linux"), "/x/idc365-decisions");
+    assert.equal(await cacheDir({ LOCALAPPDATA: "C:\\L" }, "win32"), join("C:\\L", "idc365-decisions"));
+    assert.match(await cacheDir({}, "darwin"), /Library\/Caches\/idc365-decisions$/);
+    assert.match(await cacheDir({}, "linux"), /\.cache\/idc365-decisions$/);
+    assert.equal(await cacheDir({ IDC365_DECISIONS_CACHE: "/c" }, "linux"), "/c");
   });
 });

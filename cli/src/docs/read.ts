@@ -1,5 +1,6 @@
 import { isRecord, parseYaml, splitFrontmatter } from "../engine/index.js";
 import type { GitHubClient } from "../github/index.js";
+import { cacheDir, fetchIndex } from "../index/read.js";
 import { DocRepo } from "./docrepo.js";
 import type { Kind } from "./kinds.js";
 import { normaliseId, type Refusal } from "./write.js";
@@ -16,6 +17,8 @@ export interface ShownDocument {
 
 export interface ListedDocument {
   id: string;
+  /** Changed on the work branch (from the index); undefined when read directly. */
+  pending?: boolean;
   file: string;
   title: string;
   state: string;
@@ -78,4 +81,39 @@ export async function listDocuments(client: GitHubClient, kind: Kind, ref: strin
     }
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export interface ListSource {
+  kind: "index" | "direct";
+  /** Why the index was not used. */
+  reason?: "missing" | "stale";
+  /** Conditional request status: 304 means the cached index was current. */
+  status?: number;
+  sourceSha?: string;
+  head?: string;
+  generatedAt?: string;
+}
+
+/**
+ * `list` (spec 6.2): reads the ref's index from meta/index (cached with its
+ * ETag). When there is no index, or it is behind the branch head, it reads
+ * the documents directly and says why.
+ */
+export async function listFromIndexOrDirect(
+  client: GitHubClient,
+  kind: Kind,
+  ref: string,
+  filter: { state?: string; category?: string } = {},
+  dir = cacheDir(),
+): Promise<{ documents: ListedDocument[]; source: ListSource }> {
+  const f = await fetchIndex(client, ref, dir);
+  if (f.index && !f.stale) {
+    const documents = f.index.documents
+      .filter((d) => d.type === kind.type)
+      .filter((d) => (!filter.state || d.state === filter.state) && (!filter.category || d.category === filter.category))
+      .map((d) => ({ id: d.id, pending: d.pending, file: d.path, title: d.title ?? "", state: d.state ?? "", category: d.category ?? undefined, intent: d.intent ?? "" }));
+    return { documents, source: { kind: "index", status: f.status, sourceSha: f.index.sourceSha, head: f.head, generatedAt: f.index.generatedAt } };
+  }
+  const documents = await listDocuments(client, kind, ref, filter);
+  return { documents, source: { kind: "direct", reason: f.index ? "stale" : "missing", status: f.status, sourceSha: f.index?.sourceSha, head: f.head } };
 }

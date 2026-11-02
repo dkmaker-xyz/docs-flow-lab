@@ -12,6 +12,8 @@ export interface Reply {
   status?: number;
   body?: unknown;
   headers?: Record<string, string>;
+  /** Raw response text instead of JSON. */
+  raw?: string;
 }
 
 export type Handler = (call: Call) => Reply | Promise<Reply>;
@@ -41,7 +43,7 @@ export class MockGitHub {
     const route = [...this.routes].reverse().find((r) => r.method === call.method && r.pattern.test(call.path));
     const reply: Reply = route ? await route.handler(call) : { status: 599, body: { message: `no mock for ${call.method} ${call.path}` } };
     const status = reply.status ?? 200;
-    const text = reply.body === undefined ? "" : JSON.stringify(reply.body);
+    const text = reply.raw ?? (reply.body === undefined ? "" : JSON.stringify(reply.body));
     return new Response(status === 204 || status === 304 ? null : text, {
       status,
       headers: { "content-type": "application/json; charset=utf-8", ...reply.headers },

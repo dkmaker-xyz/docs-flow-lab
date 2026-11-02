@@ -3,17 +3,24 @@ name: Documentation index
 # Rebuilds the index of a documentation branch on meta/index (spec 6.2, 7.5)
 # after every push, and removes it when the branch is deleted.
 #
-# The CLI is always built from main's cli/, never from the pushed branch, so
-# only reviewed code runs with the bot token. The bot token comes from the
-# GitHub App: repository variable BOT_APP_ID and secret BOT_PRIVATE_KEY.
-#
-# Actions are pinned to commit SHAs (tag in the comment) so a moved tag can
-# never change what runs with the bot token.
+# Security design:
+# - Pushes start the unprivileged "Documentation index trigger" workflow.
+#   This workflow reacts to it with `workflow_run`, and to `delete`; GitHub
+#   runs both from the default branch, so a pushed branch can never change
+#   the workflow that holds the bot key.
+# - The pushed commit is checked out as data only: no npm ci and no scripts
+#   from it. The CLI is built from main's cli/, so only reviewed code runs
+#   with the bot token.
+# - The bot's private key lives in the `bot` environment, whose deployment
+#   branches are limited to main; a job started from any other ref cannot
+#   read it. BOT_APP_ID is a repository variable.
+# - Actions are pinned to commit SHAs (tag in the comment) so a moved tag can
+#   never change what runs with the bot token.
 
 on:
-  push:
-    branches-ignore:
-      - "meta/**"
+  workflow_run:
+    workflows: ["Documentation index trigger"]
+    types: [completed]
   delete:
 
 permissions:
@@ -22,12 +29,12 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name == 'push'
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    # One run per branch at a time, in push order, so an older run never
-    # overwrites a newer index.
+    environment: bot
+    # One run per branch at a time, so an older run never overwrites a newer index.
     concurrency:
-      group: docs-index-${{ github.ref }}
+      group: docs-index-${{ github.event.workflow_run.head_branch }}
       cancel-in-progress: false
     steps:
       - name: CLI from main
@@ -46,10 +53,10 @@ jobs:
         working-directory: _cli/cli
         run: npm ci && npm run build
 
-      - name: Pushed branch, with history, branches and tags
+      - name: Pushed commit as data, with history, branches and tags
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           path: docs
           fetch-depth: 0
           persist-credentials: false
@@ -59,7 +66,7 @@ jobs:
         env:
           # Read-only lookups (who merged a commit's PR) use the workflow token.
           IDC365_DECISIONS_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: node ../_cli/cli/dist/index.js index build --branch "$BRANCH" --out "$RUNNER_TEMP/index.json"
 
       - name: Bot token
@@ -78,8 +85,9 @@ jobs:
   remove:
     if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'meta/')
     runs-on: ubuntu-latest
+    environment: bot
     concurrency:
-      group: docs-index-refs/heads/${{ github.event.ref }}
+      group: docs-index-${{ github.event.ref }}
       cancel-in-progress: false
     steps:
       - name: CLI from main

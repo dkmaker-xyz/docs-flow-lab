@@ -33,8 +33,8 @@ async function createIndexBranch(client: GitHubClient, path: string, content: st
 
 export interface PublishResult {
   path: string;
-  /** Commit on meta/index, or "created-branch". */
-  outcome: "created-branch" | "written";
+  /** "skipped" when the branch was deleted meanwhile (its index would be an orphan). */
+  outcome: "created-branch" | "written" | "skipped";
   retries: number;
 }
 
@@ -50,6 +50,8 @@ export async function publishIndex(client: GitHubClient, index: BranchIndex, opt
   const [lo, hi] = opts.backoffMs ?? [100, 1000];
   const sleep = opts.sleep ?? sleepReal;
   const api = client.repoPath(`/contents/${encodePath(path)}`);
+  // A branch deleted while its index was being built must not get its index back.
+  if (!(await branchHead(client, index.branch))) return { path, outcome: "skipped", retries: 0 };
   let retries = 0;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const current = await client.request<{ sha: string }>("GET", api, { query: { ref: INDEX_BRANCH }, allow: [404] });

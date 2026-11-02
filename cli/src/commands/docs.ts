@@ -3,7 +3,7 @@ import type { Command } from "commander";
 import { codeTarget, findGitRoot, originRepository } from "../docs/gitrepo.js";
 import { KINDS, MACRO_HELP, type Kind, type Noun } from "../docs/kinds.js";
 import { DocRepo } from "../docs/docrepo.js";
-import { listDocuments, showDocument, showShadow, type ShownDocument } from "../docs/read.js";
+import { listFromIndexOrDirect, showDocument, showShadow, type ListSource, type ShownDocument } from "../docs/read.js";
 import { createDocument, updateDocument, writeShadow, type DocFields, type Refusal, type WriteResult } from "../docs/write.js";
 import { GitHubClient, GitHubError } from "../github/index.js";
 import { loadSetup, renderSetupProblems } from "../setup/setup.js";
@@ -152,6 +152,12 @@ function verbExamples(kind: Kind): { verb: string; example: string }[] {
   ];
 }
 
+function sourceLine(s: ListSource, ref: string): string {
+  if (s.kind === "index") return `Source: index of \`${ref}\` at ${s.sourceSha?.slice(0, 7)} (generated ${s.generatedAt}; ${s.status === 304 ? "cache current" : "downloaded"}).`;
+  if (s.reason === "stale") return `Source: read directly, because the index (${s.sourceSha?.slice(0, 7)}) is behind the branch head (${s.head?.slice(0, 7)}) and is being rebuilt.`;
+  return `Source: read directly, because \`${ref}\` has no index yet.`;
+}
+
 function collect(value: string, previous: string[] = []): string[] {
   return [...previous, value];
 }
@@ -290,9 +296,9 @@ export function registerDocumentCommands(program: Command): void {
       .action(async (o: { ref: string; state?: string; category?: string; json?: boolean }) => {
         const out = { json: !!o.json };
         await withClient(out, async (client) => {
-          const docs = await listDocuments(client, kind, o.ref, { state: o.state, category: o.category });
-          const lines = docs.length ? docs.map((d) => `- ${d.id} · ${d.title} · ${d.state} · ${d.intent}`) : ["No documents match."];
-          print(out, { ok: true, ref: o.ref, documents: docs }, md(`${kind.name}: ${docs.length} at \`${o.ref}\``, lines, `Open one with \`${CLI} ${noun} show <ID> --ref ${o.ref}\`.`));
+          const { documents: docs, source } = await listFromIndexOrDirect(client, kind, o.ref, { state: o.state, category: o.category });
+          const lines = docs.length ? docs.map((d) => `- ${d.id}${d.pending ? " (pending)" : ""} · ${d.title} · ${d.state} · ${d.intent}`) : ["No documents match."];
+          print(out, { ok: true, ref: o.ref, source, documents: docs }, md(`${kind.name}: ${docs.length} at \`${o.ref}\``, [...lines, "", sourceLine(source, o.ref)], `Open one with \`${CLI} ${noun} show <ID> --ref ${o.ref}\`.`));
           return 0;
         });
       });
