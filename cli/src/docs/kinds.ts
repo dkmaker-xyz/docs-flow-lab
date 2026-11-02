@@ -1,7 +1,7 @@
 import type { DocType } from "../engine/index.js";
 import type { IdPrefix } from "../github/index.js";
 
-export type Noun = "adr" | "proc" | "tech" | "code" | "release";
+export type Noun = "adr" | "proc" | "tech" | "code" | "release" | "att";
 
 export interface Kind {
   noun: Noun;
@@ -77,6 +77,19 @@ export const KINDS: Record<Noun, Kind> = {
     instruction: [
       "Created with `release create vX.Y.Z` (phase `planned`); after the merge the bot creates `release/vX.Y.Z` and sets `development`; once deployed, `release tag vX.Y.Z` records `released` in a PR the user merges, and the bot creates the tag.",
       "Code branches are mapped with `release map`; the CLI never touches code repositories.",
+      ...SHARED,
+    ],
+  },
+  att: {
+    noun: "att",
+    type: "attachment",
+    folder: "attachment",
+    prefix: "ATT",
+    name: "Attachment (ATT)",
+    purpose: "A binary file (image, PDF, Office document) stored with Git LFS, with a metadata document beside it. Diagrams are mermaid in markdown, not attachments.",
+    instruction: [
+      "`att create <file>` checks type and size, uploads the binary and writes the metadata; reference it from documents with `{{ATT:NNNN|attachment|<why>}}`.",
+      "Attachments are never deleted or replaced: a new version is a new attachment with `--supersedes ATT-NNNN`.",
       ...SHARED,
     ],
   },

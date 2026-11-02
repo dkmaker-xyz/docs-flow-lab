@@ -20,12 +20,14 @@ export const VALIDATE_HELP = [
 
 export function renderMarkdown(result: ValidationResult, shownPath: string): string {
   const { findings } = result;
+  const notes = result.notes.length ? ["", "Notes (not failures):", ...result.notes.map((n) => `- \`${n.file}\`: ${n.message}`)] : [];
   const rerun = `idc365-decisions validate${shownPath === "." ? "" : ` ${shownPath}`}`;
   if (findings.length === 0) {
     return [
       "# Validation passed",
       "",
       `Checked ${result.documents} documents in \`${shownPath}\`: no findings.`,
+      ...notes,
       "",
       "## Next action",
       "",
@@ -46,12 +48,13 @@ export function renderMarkdown(result: ValidationResult, shownPath: string): str
     for (const f of list) lines.push(`- \`${f.rule}\`: ${f.message}`, `  Fix: ${f.nextAction}`);
     lines.push("");
   }
+  if (notes.length) lines.push(...notes.slice(1), "");
   lines.push("## Next action", "", `Fix every finding above, then run \`${rerun}\` again.`, "");
   return lines.join("\n");
 }
 
 export function renderJson(result: ValidationResult): string {
-  return JSON.stringify({ ok: result.findings.length === 0, root: result.root, documents: result.documents, findings: result.findings }, null, 2) + "\n";
+  return JSON.stringify({ ok: result.findings.length === 0, root: result.root, documents: result.documents, findings: result.findings, notes: result.notes }, null, 2) + "\n";
 }
 
 /** Runs the command; returns the exit code. */

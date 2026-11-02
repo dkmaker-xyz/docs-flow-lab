@@ -114,15 +114,18 @@ function buildFields(kind: Kind, id: string | undefined, f: DocFields, existing:
   if (kind.type === "techstack") {
     out.ecosystem = pick(f.ecosystem, "ecosystem");
     out.version = pick(f.bomVersion, "version");
-    out.packages = pick(f.packages?.map((p) => (p.version ? { name: p.name, version: p.version } : { name: p.name })), "packages");
+    // On update, --package entries replace the package of the same name and add new ones; the others stay.
+    const given = f.packages?.map((p) => (p.version ? { name: p.name, version: p.version } : { name: p.name }));
+    const prior = Array.isArray(existing.packages) ? (existing.packages as { name: string }[]) : undefined;
+    out.packages = given && prior ? [...prior.map((p) => given.find((g) => g.name === p.name) ?? p), ...given.filter((g) => !prior.some((p) => p.name === g.name))] : pick(given, "packages");
     out.rationale = pick(f.rationale, "rationale");
     out.docs = pick(f.docs, "docs");
     out.license = pick(f.license, "license");
     out.last_review = pick(f.lastReview, "last_review") ?? new Date().toISOString().slice(0, 10);
     out.review_interval_months = pick(f.reviewIntervalMonths, "review_interval_months");
-    const prior = Array.isArray(existing.cooldown_exemptions) ? (existing.cooldown_exemptions as { package: string; version: string }[]) : [];
-    const added = (f.cooldownExemptions ?? []).filter((e) => !prior.some((p) => p.package === e.package && p.version === e.version));
-    if (prior.length || added.length) out.cooldown_exemptions = [...prior, ...added];
+    const priorEx = Array.isArray(existing.cooldown_exemptions) ? (existing.cooldown_exemptions as { package: string; version: string }[]) : [];
+    const added = (f.cooldownExemptions ?? []).filter((e) => !priorEx.some((p) => p.package === e.package && p.version === e.version));
+    if (priorEx.length || added.length) out.cooldown_exemptions = [...priorEx, ...added];
   }
   // Unknown or unmanaged fields from an existing file stay as they were (validation reports them).
   for (const [k, v] of Object.entries(rest)) if (!(k in out) && k !== "placeholder") out[k] = v;
@@ -135,6 +138,17 @@ interface Draft {
   file: string;
   text: string;
   placeholders: Map<string, string>;
+  /** Further files in the same commit (attachment binary pointer, .gitattributes). */
+  extraFiles?: FileChange[];
+}
+
+export interface CreateExtras {
+  /** Relations to start with (resolved like macros; `link` is filled in). */
+  relations?: Relation[];
+  /** Runs after the ID is allocated and before the commit; returns more files for the same commit. */
+  extraFiles?: (id: string, file: string, refs: string[], config: Config) => Promise<FileChange[] | Refusal>;
+  /** Label for the commit and PR line instead of "Add". */
+  verb?: string;
 }
 
 async function draft(
@@ -161,7 +175,7 @@ async function draft(
   return { file, text: c.text, placeholders: resolver.placeholders };
 }
 
-async function loadConfig(repo: DocRepo, ref: string): Promise<Config | Refusal> {
+export async function loadConfig(repo: DocRepo, ref: string): Promise<Config | Refusal> {
   const { config, findings } = await repo.config(ref);
   if (!config) return refuse(`the configuration on \`${ref}\` is not valid`, "Fix config/ in the documentation repository via PR.", { findings });
   return config;
@@ -192,7 +206,7 @@ async function publish(
   key: string,
 ): Promise<WriteOk | Refusal> {
   const branch = target.existing ?? `${target.version}/${branchSlug}`;
-  const changes: FileChange[] = [{ path: d.file, content: d.text }];
+  const changes: FileChange[] = [{ path: d.file, content: d.text }, ...(d.extraFiles ?? [])];
   for (const p of d.placeholders.values()) changes.push({ path: p, content: placeholderDocument() });
   const placeholderNote = d.placeholders.size ? ` (+ ${d.placeholders.size} placeholder shadow${d.placeholders.size === 1 ? "" : "s"})` : "";
   let commit: { sha: string };
@@ -232,7 +246,7 @@ function refsFor(target: Target): string[] {
 }
 
 /** `<noun> create` for ADR, PROC and TECH (spec 3.1, 4.2, 6.1, 7.1). */
-export async function createDocument(client: GitHubClient, kind: Kind, fields: DocFields, body: string, opts: BranchOptions): Promise<WriteResult> {
+export async function createDocument(client: GitHubClient, kind: Kind, fields: DocFields, body: string, opts: BranchOptions, extras: CreateExtras = {}): Promise<WriteResult> {
   if (!kind.prefix || !kind.folder) throw new Error("createDocument is for typed documents; use createShadow for code");
   const repo = new DocRepo(client);
   const target = await resolveTarget(client, repo, opts);
@@ -245,8 +259,8 @@ export async function createDocument(client: GitHubClient, kind: Kind, fields: D
 
   // Validate with a provisional number first, so a refused document costs no ID.
   const provisional = `${kind.prefix}-0000`;
-  const tryDraft = (id: string) =>
-    draft(repo, config, refs, kind, `docs/${kind.folder}/${id.slice(kind.prefix!.length + 1)}-${slug}.md`, id, buildFields(kind, id, fields), [], body);
+  const fileFor = (id: string) => `docs/${kind.folder}/${id.slice(kind.prefix!.length + 1)}-${slug}.md`;
+  const tryDraft = (id: string) => draft(repo, config, refs, kind, fileFor(id), id, buildFields(kind, id, fields), extras.relations ?? [], body);
   const first = await tryDraft(provisional);
   if ("ok" in first) return first;
 
@@ -254,7 +268,12 @@ export async function createDocument(client: GitHubClient, kind: Kind, fields: D
   const id = ids[0]!;
   const final = await tryDraft(id);
   if ("ok" in final) return final;
-  return publish(client, target, slugify(`${id} ${fields.title}`), final, `Add ${id}: ${fields.title}`, "created", id);
+  if (extras.extraFiles) {
+    const more = await extras.extraFiles(id, fileFor(id), refs, config);
+    if (!Array.isArray(more)) return more;
+    final.extraFiles = more;
+  }
+  return publish(client, target, slugify(`${id} ${fields.title}`), final, `${extras.verb ?? "Add"} ${id}: ${fields.title}`, "created", id);
 }
 
 /** Normalises `ADR-0042`, `0042` or `42` to `ADR-0042`. */

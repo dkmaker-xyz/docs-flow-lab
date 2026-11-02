@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
+import { registerAttCommands } from "./commands/att-cmd.js";
 import { registerDocumentCommands } from "./commands/docs.js";
 import { registerIndexCommands } from "./commands/index-cmd.js";
 import { registerPostMergeCommand } from "./commands/postmerge-cmd.js";
@@ -71,6 +72,7 @@ setup.helpInformation = () =>
   ].join("\n");
 
 registerDocumentCommands(program);
+registerAttCommands(program);
 registerIndexCommands(program);
 registerPostMergeCommand(program);
 registerReleaseCommands(program);

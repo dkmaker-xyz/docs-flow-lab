@@ -42,6 +42,8 @@ export interface ValidationResult {
   /** Number of documents (.md files under docs/ and code/) checked. */
   documents: number;
   findings: Finding[];
+  /** Not failures: attachments nothing links to, documents still linking to a superseded attachment. */
+  notes: { file: string; message: string }[];
 }
 
 export type DocType = "adr" | "procedure" | "techstack" | "release" | "attachment" | "shadow";

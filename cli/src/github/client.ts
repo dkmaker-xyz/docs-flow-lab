@@ -56,6 +56,16 @@ export class GitHubClient {
     this.userAgent = opts.userAgent ?? "idc365-decisions-cli";
   }
 
+  /** Authorization for the Git LFS API (basic, as git uses it). */
+  lfsAuthorization(): string {
+    return `Basic ${Buffer.from(`x-access-token:${this.token}`).toString("base64")}`;
+  }
+
+  /** The fetch in use, for requests outside the REST API (Git LFS, object storage). */
+  get fetcher(): typeof fetch {
+    return this.fetchImpl;
+  }
+
   get repository(): string {
     return `${this.owner}/${this.repo}`;
   }

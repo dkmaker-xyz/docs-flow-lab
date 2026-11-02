@@ -67,7 +67,7 @@ function listDir(abs: string): { name: string; dir: boolean }[] {
 export function validateTree(rootPath: string): ValidationResult {
   const root = resolve(rootPath);
   const { config, findings: configFindings } = loadConfig(root);
-  if (!config) return { root, documents: 0, findings: configFindings };
+  if (!config) return { root, documents: 0, findings: configFindings, notes: [] };
 
   const out = new Collector();
   const docs: Doc[] = [];
@@ -95,7 +95,7 @@ export function validateTree(rootPath: string): ValidationResult {
   checkPriming(config, docs, out);
 
   const findings = out.findings.sort((a, b) => a.file.localeCompare(b.file) || a.rule.localeCompare(b.rule));
-  return { root, documents: docs.length, findings };
+  return { root, documents: docs.length, findings, notes: attachmentNotes(docs, registry) };
 }
 
 function walkDocs(root: string, out: Collector, docs: Doc[], binaries: Binary[]): void {
@@ -472,4 +472,28 @@ export function validateDocuments(config: Config, written: { file: string; text:
     checkReleaseRepos(config, doc, out);
   }
   return out.findings.sort((a, b) => a.file.localeCompare(b.file) || a.rule.localeCompare(b.rule));
+}
+
+/**
+ * Notes about attachments (spec 5.5), never failures: an attachment nothing
+ * links to, and a document that still links to a superseded attachment.
+ */
+function attachmentNotes(docs: Doc[], registry: Map<string, Doc>): { file: string; message: string }[] {
+  const notes: { file: string; message: string }[] = [];
+  const linked = new Set<string>();
+  for (const d of docs) {
+    for (const r of relationsOf(d)) {
+      if (r.type in INVERSE_OF || !r.target.startsWith("ATT-")) continue;
+      linked.add(r.target);
+      const att = registry.get(r.target);
+      if (att?.frontmatter?.state === "superseded") {
+        const by = relationsOf(att).filter((x) => x.type === "superseded-by").map((x) => x.target);
+        notes.push({ file: d.file, message: `still links to the superseded ${r.target}${by.length ? ` (superseded by ${by.join(", ")})` : ""}` });
+      }
+    }
+  }
+  for (const d of docs) {
+    if (d.type === "attachment" && d.key && !linked.has(d.key)) notes.push({ file: d.file, message: `nothing links to ${d.key}` });
+  }
+  return notes.sort((a, b) => a.file.localeCompare(b.file));
 }
