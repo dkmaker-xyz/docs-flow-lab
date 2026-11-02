@@ -129,36 +129,6 @@ export function docsTagFor(version: Version, tags: string[]): string | undefined
   return best ? formatVersion(best) : undefined;
 }
 
-export interface TagInstructions {
-  ok: true;
-  version: string;
-  released?: string;
-  rel?: string;
-  url: string;
-  command: string;
-}
-
-/**
- * `release tag vX.Y.Z` (spec 7.2): validates the version and says how a
- * human starts the tag workflow. It never starts the workflow: the CLI token
- * has no Actions permission, and tags are a human decision.
- */
-export async function tagInstructions(client: GitHubClient, version: string): Promise<TagInstructions | Refusal> {
-  const v = parseVersion(version);
-  if (!v) return refuse(`\`${version}\` is not a version like v1.2.0`, "Use a full version vMAJOR.MINOR.PATCH.");
-  const released = highestVersion(await tagNames(client));
-  if (released && compareVersions(v, released) <= 0) return refuse(`${version} is not higher than the released ${formatVersion(released)}`, "Tag a higher version.");
-  const rel = (await listRels(client, "main")).find((r) => r.version === version);
-  return {
-    ok: true,
-    version,
-    released: released ? formatVersion(released) : undefined,
-    rel: rel?.id,
-    url: `https://github.com/${client.repository}/actions/workflows/docs-tag.yml`,
-    command: `gh workflow run docs-tag.yml --repo ${client.repository} --ref main -f version=${version}`,
-  };
-}
-
 export type Resolution =
   | { ok: true; how: "direct" | "inherited"; rel: Rel; repo: string; branch: string; mappedBranch: string; docsBranch: string; docsBranchExists: boolean }
   | { ok: false; orphaned: true; repo?: string; branch?: string; candidates: string[]; message: string; nextAction: string };

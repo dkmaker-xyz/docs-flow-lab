@@ -33,6 +33,7 @@ export function registerPostMergeCommand(program: Command): void {
           ...r.edits.map((e) => `- \`${e.file}\`: ${e.reasons.join(", ")}`),
           ...r.findings.map((f) => `- \`${f.rule}\` in \`${f.file}\`: ${f.message}`),
           ...(r.commit ? [`- Commit: ${r.commit}`] : []),
+          ...r.actions.map((a) => `- ${a.kind} ${a.kind === "create-tag" ? a.tag : a.branch}: ${a.done ? "done" : a.skipped ?? "planned"} (${a.reason})`),
         ];
         const title = { nothing: "Post-merge: nothing to do", committed: `Post-merge: ${r.edits.length} document${r.edits.length === 1 ? "" : "s"} updated`, "dry-run": "Post-merge: planned (dry run)", invalid: "Post-merge: the result would not validate; nothing written" }[r.outcome];
         process.stdout.write(o.json ? JSON.stringify({ ok: r.outcome !== "invalid", ...r }, null, 2) + "\n" : md(title, lines, r.outcome === "invalid" ? "Fix the findings on the branch via PR, then rerun the post-merge workflow." : "None."));

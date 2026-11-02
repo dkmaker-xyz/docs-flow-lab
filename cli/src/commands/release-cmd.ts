@@ -3,11 +3,10 @@ import type { Command } from "commander";
 import { KINDS } from "../docs/kinds.js";
 import { showDocument } from "../docs/read.js";
 import { GitHubClient, GitHubError, parseVersion } from "../github/index.js";
-import { createRelease, currentRelease, docsTagFor, listRels, mapRelease, tagInstructions, tagNames, type CodeMapping } from "../release/release.js";
-import { applyTag } from "../release/tag.js";
+import { createRelease, currentRelease, docsTagFor, listRels, mapRelease, tagNames, type CodeMapping } from "../release/release.js";
+import { recordRelease } from "../release/tag.js";
 import { loadSetup, renderSetupProblems } from "../setup/setup.js";
 import { renderRefusal, renderWrite } from "./docs.js";
-import { clientFor } from "./index-cmd.js";
 
 const CLI = "idc365-decisions";
 
@@ -59,7 +58,7 @@ const HELP = [
   `- \`${CLI} release list [--ref main]\`, \`${CLI} release show <REL-ID> [--ref main]\``,
   `- \`${CLI} release current\`: which release the current code branch belongs to (run in the code repository).`,
   `- \`${CLI} release for vX.Y.Z\`: which documentation tag applies to a product version.`,
-  `- \`${CLI} release tag vX.Y.Z\`: how a human starts the tag workflow (the CLI never tags).`,
+  `- \`${CLI} release tag vX.Y.Z\`: once a version is deployed, record it in a PR; after the human merges it, the bot creates the tag.`,
 ];
 
 /** Registers `release` and its verbs (spec 7.2, 7.3). */
@@ -172,29 +171,22 @@ export function registerReleaseCommands(program: Command): void {
 
   release
     .command("tag")
-    .argument("<version>", "vX.Y.Z")
+    .argument("<version>", "vX.Y.Z, once deployed")
     .option("--json")
     .action(async (version: string, o: { json?: boolean }) => {
       await withClient(!!o.json, async (client) => {
-        const r = await tagInstructions(client, version);
+        const r = await recordRelease(client, version);
         if (!r.ok) {
           print(!!o.json, r, renderRefusal(r));
           return 1;
         }
         const lines = [
-          `- Version ${r.version} is valid (highest tag now: ${r.released ?? "none"}).`,
-          `- ${r.rel ? `${r.rel} will be set to \`released\`, and the previously released REL to \`retired\`.` : "No REL has this version (a patch): no phases change."}`,
-          "- Only a human starts the tag workflow, when the product is actually deployed. The CLI cannot and does not start it.",
-          "",
-          `In GitHub: open ${r.url}, choose **Run workflow** on \`main\` and enter \`${r.version}\`.`,
-          "",
-          "Or in a terminal, with the person's own GitHub access:",
-          "",
-          "```sh",
-          r.command,
-          "```",
+          r.kind === "release" ? `- ${r.rel} is recorded as \`released\`${r.retired.length ? `; ${r.retired.join(", ")} as \`retired\`` : ""}.` : `- ${r.version} is recorded as a patch of ${r.rel} (\`patches\`).`,
+          `- Branch: \`${r.branch}\`, commit ${r.commit.slice(0, 7)}`,
+          `- Pull request: #${r.pr.number} ${r.pr.url}`,
+          `- After the merge the bot creates the tag \`${r.version}\` on the merge commit.`,
         ];
-        print(!!o.json, r, md(`Tag ${r.version}: a human starts the workflow`, lines, "Ask the user to start the tag workflow as shown above when the product is deployed. Do not start it yourself."));
+        print(!!o.json, r, md(`Release ${r.version} recorded in a PR`, lines, `Ask the user to review and merge the PR when ${r.version} is deployed: ${r.pr.url}`));
         return 0;
       });
     });
@@ -220,28 +212,5 @@ export function registerReleaseCommands(program: Command): void {
       });
     });
 
-  // Run by the tag workflow with the bot token; agents use `release tag`.
-  const apply = release
-    .command("apply-tag")
-    .argument("<version>")
-    .option("--repository <owner/repo>")
-    .option("--json")
-    .action(async (version: string, o: { repository?: string; json?: boolean }) => {
-      const client = clientFor(o.repository);
-      if (!(client instanceof GitHubClient)) {
-        print(!!o.json, { ok: false, ...client }, md(`Cannot tag: ${client.error}`, [], client.nextAction));
-        process.exitCode = 1;
-        return;
-      }
-      try {
-        const r = await applyTag(client, version);
-        const lines = [`- Tag \`${r.version}\` at ${r.tagged}`, `- ${r.released ? `${r.released} released` : "no REL for this version: no phases changed"}`, ...r.retired.map((x) => `- ${x} retired`), ...(r.commit ? [`- Bot commit ${r.commit}`] : [])];
-        print(!!o.json, { ok: true, ...r }, md(`Tagged ${r.version}`, lines, "None."));
-      } catch (err) {
-        if (!(err instanceof GitHubError)) throw err;
-        print(!!o.json, { ok: false, error: err.message, nextAction: err.nextAction }, md(`Tag ${version} refused`, [`- ${err.message}`], err.nextAction));
-        process.exitCode = 1;
-      }
-    });
-  apply.helpInformation = () => "Run by the tag workflow. Use `idc365-decisions release tag vX.Y.Z` instead.\n";
+
 }

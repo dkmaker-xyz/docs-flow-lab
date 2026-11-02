@@ -75,7 +75,7 @@ export const KINDS: Record<Noun, Kind> = {
     name: "Release (REL)",
     purpose: "One product version: its documentation branch, the code branch per repository, Jira fix version and dates. The released version is the highest vX.Y.Z tag.",
     instruction: [
-      "Created with `release create vX.Y.Z` (phase `planned`); after the merge the bot creates `release/vX.Y.Z` and sets `development`; the tag workflow, started by a human, sets `released`.",
+      "Created with `release create vX.Y.Z` (phase `planned`); after the merge the bot creates `release/vX.Y.Z` and sets `development`; once deployed, `release tag vX.Y.Z` records `released` in a PR the user merges, and the bot creates the tag.",
       "Code branches are mapped with `release map`; the CLI never touches code repositories.",
       ...SHARED,
     ],
