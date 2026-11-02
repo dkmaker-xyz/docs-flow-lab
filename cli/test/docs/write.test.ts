@@ -211,6 +211,22 @@ describe("adr update", () => {
   });
 });
 
+describe("tech update", () => {
+  const TECH = "---\nid: TECH-0001\ntitle: React\ndescription: d\nintent: i\nwhen: w\nstate: accepted\ncategory: framework\necosystem: npm\npackages:\n  - name: react\n    version: \"19.*\"\n  - name: react-dom\n    version: \"19.*\"\nrationale: r\nlicense: MIT\nlast_review: \"2026-10-01\"\nreview_interval_months: 12\n---\nNotes.\n";
+  test("--package replaces the package of that name and keeps the others; exemptions are added", async () => {
+    const r = repo({ "docs/techstack/0001-react.md": TECH });
+    const res = okResult(await updateDocument(r.client(), KINDS.tech, "1", { packages: [{ name: "react", version: "20.*" }, { name: "scheduler", version: "0.*" }], cooldownExemptions: [{ package: "react", version: "20.0.1", cve: "CVE-2026-12345", until: "2026-11-05" }] }, undefined, { version: "v1.0.1" }));
+    const f = frontmatter(r.files(res.branch).get(res.file)!);
+    assert.deepEqual(f.packages, [{ name: "react", version: "20.*" }, { name: "react-dom", version: "19.*" }, { name: "scheduler", version: "0.*" }]);
+    assert.deepEqual(f.cooldown_exemptions, [{ package: "react", version: "20.0.1", cve: "CVE-2026-12345", until: "2026-11-05" }]);
+  });
+  test("a malformed exemption does not validate", async () => {
+    const r = repo({ "docs/techstack/0001-react.md": TECH });
+    const res = await updateDocument(r.client(), KINDS.tech, "1", { cooldownExemptions: [{ package: "react", version: "20.0.1", cve: "not-a-cve", until: "2026-11-05" }] }, undefined, { version: "v1.0.1" });
+    assert.ok(!res.ok && (res.findings ?? []).some((x) => /cve/.test(x.message)));
+  });
+});
+
 describe("show and list", () => {
   const r = repo({
     "docs/adr/0001-a.md": existingAdr("0001", "a"),
