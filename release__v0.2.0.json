@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "release/v0.2.0",
-  "sourceSha": "b197f97d21c712147bc74c3ab5065cb5444dcf9a",
-  "generatedAt": "2026-11-02T22:31:54.186Z",
+  "sourceSha": "d326294a4aeef62583a1e39381b05880b4555fc0",
+  "generatedAt": "2026-11-02T22:36:44.602Z",
   "base": null,
   "documents": [
     {
@@ -72,6 +72,84 @@
       "commit": {
         "sha": "9a556e54073a5ec10726ef0274042d2c1432400d",
         "date": "2026-11-02T22:51:37+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "ADR-0055",
+      "type": "adr",
+      "path": "docs/adr/0055-search-runs-in-the-app-process.md",
+      "slug": "search-runs-in-the-app-process",
+      "title": "Search runs in the app process",
+      "description": "The v0.2.0 search runs inside the app.",
+      "intent": "Test 4.2: work on v0.2.0 has base release/v0.2.0.",
+      "when": "Phase 6 integration test only.",
+      "state": "accepted",
+      "category": "architecture",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [
+          {
+            "type": "relates-to",
+            "target": "CODE:dkmaker-xyz/docs-flow-lab-app/search.txt",
+            "why": "the search code of the release line"
+          }
+        ],
+        "incoming": [
+          {
+            "type": "relates-to",
+            "source": "CODE:dkmaker-xyz/docs-flow-lab-app/search.txt",
+            "why": "the search code of the release line"
+          }
+        ]
+      },
+      "releases": [
+        "release/v0.2.0"
+      ],
+      "commit": {
+        "sha": "346c24026669cd35ad215a7c1147e7168a143d21",
+        "date": "2026-11-02T23:33:32+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "CODE:dkmaker-xyz/docs-flow-lab-app/search.txt",
+      "type": "shadow",
+      "path": "code/dkmaker-xyz/docs-flow-lab-app/search.txt.md",
+      "slug": null,
+      "title": null,
+      "description": null,
+      "intent": null,
+      "when": null,
+      "state": null,
+      "category": null,
+      "featured": false,
+      "placeholder": true,
+      "pending": false,
+      "relations": {
+        "outgoing": [
+          {
+            "type": "relates-to",
+            "target": "ADR-0055",
+            "why": "the search code of the release line"
+          }
+        ],
+        "incoming": [
+          {
+            "type": "relates-to",
+            "source": "ADR-0055",
+            "why": "the search code of the release line"
+          }
+        ]
+      },
+      "releases": [
+        "release/v0.2.0"
+      ],
+      "commit": {
+        "sha": "d326294a4aeef62583a1e39381b05880b4555fc0",
+        "date": "2026-11-02T22:36:27Z"
       },
       "mergedBy": "dkmaker"
     },
