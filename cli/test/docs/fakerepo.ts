@@ -2,6 +2,7 @@
  * An in-memory GitHub repository behind the fetch mock: enough of the Git
  * Data, Contents, refs and pulls APIs for the document commands.
  */
+import { createHash as createHashForBlobs } from "node:crypto";
 import { createHash } from "node:crypto";
 import { GitHubClient } from "../../src/github/index.js";
 import { MockGitHub, R, REPO, type Call, type Reply } from "../github/mock.js";
@@ -146,6 +147,12 @@ export class FakeRepo {
       const { message, tree, parents } = c.body as { message: string; tree: string; parents: string[] };
       return { status: 201, body: { sha: this.commit(trees.get(tree)!, parents, message) } };
     });
+    // Recursive tree listing of a commit's tree ("tree:<commit>"), with git blob ids like GitHub's.
+    m.on("GET", /\/git\/trees\/tree:[0-9a-f]+$/, (c) => {
+      const commit = this.commits.get(c.path.split("tree:").pop()!);
+      if (!commit) return nf;
+      return { body: { tree: [...commit.tree].map(([path, b]) => ({ path, type: "blob", sha: gitBlobSha(this.blobs.get(b)!) })), truncated: false } };
+    });
     m.on("GET", /\/git\/blobs\/[0-9a-f]+$/, (c) => ({ body: { content: this.blobs.get(c.path.split("/").pop()!)!.toString("base64"), encoding: "base64" } }));
     m.on("GET", /\/contents(\/.*)?$/, (c) => this.getContents(c));
     m.on("GET", /^\/repos\/[^/]+\/[^/]+\/commits\/.+$/, (c) => {
@@ -229,4 +236,9 @@ export class FakeRepo {
     this.refs.set(`heads/${branch}`, this.commit(tree, [head], message));
     return { body: { content: { sha: tree.get(path) } } };
   }
+}
+
+/** Git's blob id (sha1 of "blob <len>\\0" + content). */
+export function gitBlobSha(buf: Buffer): string {
+  return createHashForBlobs("sha1").update(`blob ${buf.length}\0`).update(buf).digest("hex");
 }

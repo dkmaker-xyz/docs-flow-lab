@@ -63,7 +63,7 @@ jobs:
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$BRANCH" --jq .object.sha 2>/dev/null) || sha=""
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || sha=""
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          if [ -z "$sha" ]; then echo "Branch $BRANCH no longer exists; its index is removed by the remove workflow."; fi
+          if [ -z "$sha" ]; then echo "$BRANCH is not a branch (a v* tag, or deleted; a deleted branch's index is removed by the remove workflow)."; fi
 
       - name: CLI from main
         if: steps.head.outputs.sha != ''

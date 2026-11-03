@@ -12,6 +12,7 @@ The documentation repository `{{REPOSITORY}}` holds the project's decisions, pro
 - Before adding or upgrading a dependency: `idc365-decisions tech check`.
 - To record a decision, procedure or code documentation: `idc365-decisions adr|proc|tech|code` prints the guide and the verbs; every write opens a pull request that the user reviews and merges.
 - To see which release the current branch belongs to: `idc365-decisions release current`.
+- When the user wants to read or browse the documentation: start `idc365-decisions view` as a background command (it keeps serving until stopped) and give the user the URL it prints.
 - Every command ends with `## Next action`; follow it.
 
 ## Setup
