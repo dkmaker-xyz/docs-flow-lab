@@ -147,6 +147,22 @@ The CLI never merges.
 Every command prints markdown ending in `## Next action`; `--json` gives
 machine-readable output.
 
+## Read the documentation in the browser
+
+```sh
+idc365-decisions view            # opens the browser
+idc365-decisions view --no-open  # prints the URL only
+```
+
+A small read-only website on your own machine: navigation by type, search
+over ID, title and text, a version picker (`main`, planned releases and every
+`v*` tag), and per document the status, the superseded banner, a table of
+contents and its relations in both directions. The site workflow renders the
+pages to the `meta/site` branch; `view` fetches them with your token, caches
+them (it works offline from the cache) and serves them on `127.0.0.1` only.
+The URL carries a one-time key that signs the browser in; the token never
+reaches the browser. Ctrl+C stops it.
+
 ## Validate a documentation tree
 
 ```sh
@@ -191,6 +207,22 @@ IDC365_TEST_REPO=<owner>/<repo> IDC365_DECISIONS_TOKEN=<token> npm run test:inte
 Dependencies are pinned to exact versions (`cli/.npmrc` sets
 `save-exact=true`) and locked in `package-lock.json`. Add a dependency only
 when it is really needed.
+
+## Repository setup (documentation repository)
+
+What the workflows rely on, set up once by an owner:
+
+- Environment `bot` with the secret `BOT_PRIVATE_KEY` (deployment branches:
+  `main` and `release/*`) and the repository variable `BOT_CLIENT_ID`.
+- Rulesets, each with only the bot app as bypass actor:
+  - `truth-branches` (`main`, `release/*`): pull request with the `validate`
+    check, no creation, deletion or force push;
+  - `release-tags` (`v*` tags): no creation, update or deletion;
+  - `meta-ids` (`meta/ids`): no deletion or force push;
+  - `meta-index` (`meta/index`), `meta-plugin` (`meta/plugin`) and
+    `meta-site` (`meta/site`): no creation, update, deletion or force push.
+- Workflows: `docs-validate`, `docs-post-merge`, `docs-index-trigger`,
+  `docs-index`, `docs-index-remove`, `docs-site`, `plugin-build`.
 
 ## Releases
 
