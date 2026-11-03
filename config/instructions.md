@@ -46,7 +46,7 @@ documentation. Run `idc365-decisions` for its guide.
 - Use web search actively to find current, authoritative sources (official
   documentation, release notes, security advisories) before you propose a
   decision, a procedure or a dependency.
-- Cite the sources in the document you write.
+- Cite the sources, with their URLs, in the document you write.
 - When web search is unavailable, tell the user what you could not verify.
 
 ## Working with the user
