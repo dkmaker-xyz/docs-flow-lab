@@ -270,10 +270,10 @@ describe("index reading", () => {
   });
 
   test("cache folder per platform", async () => {
-    assert.equal(await cacheDir({ XDG_CACHE_HOME: "/x" }, "linux"), "/x/idc365-decisions");
+    assert.equal(await cacheDir({ XDG_CACHE_HOME: "/x" }, "linux"), join("/x", "idc365-decisions"));
     assert.equal(await cacheDir({ LOCALAPPDATA: "C:\\L" }, "win32"), join("C:\\L", "idc365-decisions"));
-    assert.match(await cacheDir({}, "darwin"), /Library\/Caches\/idc365-decisions$/);
-    assert.match(await cacheDir({}, "linux"), /\.cache\/idc365-decisions$/);
+    assert.match(await cacheDir({}, "darwin"), /Library[\\/]Caches[\\/]idc365-decisions$/);
+    assert.match(await cacheDir({}, "linux"), /\.cache[\\/]idc365-decisions$/);
     assert.equal(await cacheDir({ IDC365_DECISIONS_CACHE: "/c" }, "linux"), "/c");
   });
 });

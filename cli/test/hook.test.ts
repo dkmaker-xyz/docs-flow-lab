@@ -216,7 +216,7 @@ describe("priming (hook session-start)", () => {
     mkdirSync(join(pluginRoot, ".claude-plugin"), { recursive: true });
     writeFileSync(join(pluginRoot, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "idc365-decisions", version: "0.1.5" }));
     const newer = await prime({ cwd: codeRepo(), env: env("t"), cacheDir: uniq("cache"), version: "0.1.0", pluginRoot, fetch: r.mock.fetch, view: async () => ({ ok: true, version: "0.1.7" }) });
-    assert.match(newer.context, /> A newer idc365-decisions plugin is available: 0\.1\.7 \(installed 0\.1\.5\)\. Ask the user for permission before updating; do not update on your own\. The user updates in Claude Code with `\/plugin marketplace update idc365-decisions`, then `\/reload-plugins`\./);
+    assert.match(newer.context, /> A newer idc365-decisions plugin is available: 0\.1\.7 \(installed 0\.1\.5\)\. Ask the user for permission before updating; do not update on your own\. The user updates in Claude Code with `\/plugin marketplace update idc365-decisions`, then `\/reload-plugins` \(or in a terminal: `claude plugin update idc365-decisions@idc365-decisions`, then restart\)\./);
     let called = false;
     const outside = await prime({ cwd: codeRepo(), env: env("t"), cacheDir: uniq("cache"), version: "0.1.0", fetch: r.mock.fetch, view: async () => ((called = true), { ok: true, version: "9.9.9" }) });
     assert.doesNotMatch(outside.context, /newer/);

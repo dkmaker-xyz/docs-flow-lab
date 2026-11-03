@@ -40,9 +40,12 @@ In Claude Code:
 Or in a terminal: `claude plugin marketplace add idconnectdk/idc365-decisions#meta/plugin`
 and `claude plugin install idc365-decisions@idc365-decisions`.
 
-A code repository that is already linked (see below) offers the plugin by
-itself: its `.claude/settings.json` names the marketplace and enables the
-plugin, and Claude Code applies it once you trust the folder.
+A code repository that is already linked (see below) names the marketplace
+and enables the plugin in its `.claude/settings.json`: when you trust the
+folder, Claude Code registers the marketplace and loads the plugin in the
+background. Claude Code does not record a plugin that only repository
+settings enabled, so run the install command above once anyway; after that
+it loads in every session.
 
 The plugin puts `idc365-decisions` on the `PATH` of Claude's Bash and
 PowerShell tools (`bin/idc365-decisions` and `bin/idc365-decisions.cmd`).
@@ -54,7 +57,8 @@ exact pins) from npmjs.org when it caches the plugin.
 The project settings turn on auto-update for the marketplace: Claude Code
 fetches a new plugin version in the background and asks for
 `/reload-plugins`. By hand: `/plugin marketplace update idc365-decisions`,
-then `/reload-plugins`. When auto-update is off, the session priming says
+then `/reload-plugins`; in a terminal: `claude plugin update
+idc365-decisions@idc365-decisions`, then restart Claude Code. When auto-update is off, the session priming says
 when a newer version exists (checked once a day) and tells the agent to ask
 you first.
 
