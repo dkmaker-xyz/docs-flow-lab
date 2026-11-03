@@ -11,6 +11,10 @@ relations:
     target: ATT-0001
     why: the diagram this decision describes
     link: ../attachment/0001-system-overview-diagram.md
+  - type: relates-to
+    target: ADR-0058
+    why: keeps the overview diagram current
+    link: ./0058-read-the-documentation-in-the-local-viewer.md
 ---
 ## Context
 
