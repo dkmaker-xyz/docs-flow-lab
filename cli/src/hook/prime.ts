@@ -244,7 +244,7 @@ export async function prime(o: PrimeOptions): Promise<Primed> {
       const e = err as Error;
       reason = err instanceof GitHubError
         ? err.status === 401
-          ? `the token in \`${TOKEN_ENV}\` was rejected (401). Fix: create a new token as described in the CLI README and export it as \`${TOKEN_ENV}\`.`
+          ? `the token in \`${TOKEN_ENV}\` was rejected (401). Fix: the user creates a new token and stores it as \`${TOKEN_ENV}\`; run \`idc365-decisions setup\` for the steps (Windows and Linux).`
           : `${e.message}. Fix: ${err.nextAction}`
         : `unexpected error: ${e.message}.`;
     }

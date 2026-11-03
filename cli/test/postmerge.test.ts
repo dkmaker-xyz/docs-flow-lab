@@ -75,7 +75,7 @@ function remoteOf(root: string): FakeRepo {
       if (name === ".git") continue;
       const p = join(dir, name);
       if (statSync(p).isDirectory()) walk(p);
-      else files[relative(root, p)] = readFileSync(p, "utf8");
+      else files[relative(root, p).split("\\").join("/")] = readFileSync(p, "utf8");
     }
   };
   walk(root);
