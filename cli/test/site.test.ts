@@ -10,7 +10,7 @@ import { packageRoot } from "../src/engine/package-root.js";
 import { localGit } from "../src/index/build.js";
 import { blobSha, publishSite, removeSite } from "../src/site/publish.js";
 import { buildSite, folderName, pagePath, plainText, refOfFolder, renderMarkdown, resolveHref, safeHref, type SiteManifest } from "../src/site/render.js";
-import { createViewer, hostAllowed, parseCookies, safePage, searchEntries } from "../src/site/server.js";
+import { createViewer, hostAllowed, parseCookies, safePage, searchEntries, tabOf, TABS } from "../src/site/server.js";
 import { cacheFile, SiteSource } from "../src/site/source.js";
 import { FakeRepo, gitBlobSha } from "./docs/fakerepo.js";
 
@@ -57,13 +57,16 @@ describe("rendering", () => {
     assert.match(old, /<div class="banner superseded"><p>Superseded by <a href="0003-separate-event-database.html">ADR-0003 Store partner events separately<\/a>: Events move to their own database\.<\/p><\/div>/);
     assert.match(old, /<span class="badge s-proposed">proposed<\/span>/);
     // outgoing: amends ADR-0001, attachment ATT-0002; incoming: supersedes from ADR-0003
-    assert.match(old, /<h3>This document<\/h3><ul>\n<li><span class="rtype">amends<\/span> <a href="0001-store-data-in-postgresql.html">ADR-0001<\/a> Store service data in PostgreSQL<span class="why">Adds an event store table to the data decision\.<\/span>/);
-    assert.match(old, /<h3>Other documents<\/h3><ul>\n<li><a href="0003-separate-event-database.html">ADR-0003<\/a> Store partner events separately <span class="rtype">supersedes this<\/span><span class="why">Events move to their own database\.<\/span>/);
+    assert.match(old, /<h3>Outgoing<\/h3><ul>\n<li><span class="rtype">amends<\/span> <a href="0001-store-data-in-postgresql.html">ADR-0001<\/a> Store service data in PostgreSQL<span class="why">Adds an event store table to the data decision\.<\/span>/);
+    assert.match(old, /<h3>Incoming<\/h3><ul>\n<li><a href="0003-separate-event-database.html">ADR-0003<\/a> Store partner events separately <span class="rtype">supersedes this<\/span><span class="why">Events move to their own database\.<\/span>/);
     const adr1 = files.get("docs/adr/0001-store-data-in-postgresql.html")!;
     assert.match(adr1, /<div class="banner"><p>Amended by <a href="0002-partner-event-api.html">ADR-0002 /, "amended-by banner");
     assert.match(adr1, /<a href="https:\/\/example\.atlassian\.net\/browse\/IDC-123" rel="noreferrer noopener">JIRA:IDC-123<\/a>/, "JIRA relation is a real link");
-    assert.match(adr1, /<a href="\.\.\/\.\.\/code\/idconnectdk\/idc365\/src\/main\.ts\.html">CODE:idconnectdk\/idc365\/src\/main\.ts<\/a>/, "CODE relation links the shadow page");
+    assert.match(adr1, /<a href="\.\.\/\.\.\/code\/idconnectdk\/idc365\/src\/main\.ts\.html">CODE idc365\/src\/main\.ts<\/a><span class="why">/, "CODE relation: the path once, no repeated title");
     assert.doesNotMatch(files.get("docs/adr/0003-separate-event-database.html")!, /class="banner/);
+    const db = files.get("code/idconnectdk/idc365/src/db.ts.html")!;
+    assert.match(db, /<span class="badge s-placeholder">placeholder<\/span> · <span class="id">CODE idc365\/src\/db\.ts<\/span>/);
+    assert.doesNotMatch(Object.values(Object.fromEntries(files)).join(""), /unknown/);
   });
   test("intent on one line, table of contents with unique ids, body links to .html pages", () => {
     const page = files.get("docs/adr/0003-separate-event-database.html")!;
@@ -196,6 +199,7 @@ describe("viewer server", () => {
     const start = await get(port, "/v/main/", cookie);
     assert.equal(start.status, 200);
     assert.match(start.body, /<h1>Recent changes<\/h1>/);
+    assert.match(start.body, /<td><a href="\/v\/main\/code\/idconnectdk\/idc365\/src\/db\.ts\.html">CODE idc365\/src\/db\.ts<\/a><\/td><td><\/td><td><span class="badge s-placeholder">placeholder<\/span>/);
     assert.match(start.body, /<option value="main" selected>main<\/option><option value="v0\.2\.0">v0\.2\.0<\/option>/);
     for (const label of ["Architecture decisions", "Procedures", "Tech stack", "Releases", "Attachments", "Code"]) assert.match(start.body, new RegExp(`<h2>${label}</h2>`));
     assert.match(String(start.headers["content-security-policy"]), /default-src 'none'; style-src 'self'; script-src 'self'/);
@@ -228,6 +232,67 @@ describe("viewer server", () => {
     const off = await get(port, "/v/main/docs/adr/0001-store-data-in-postgresql.html", cookie);
     assert.equal(off.status, 200);
     assert.match(off.body, /Offline: GitHub could not be reached; showing the copy cached at /);
+  });
+});
+
+describe("viewer type tabs", () => {
+  async function viewer() {
+    const r = await siteRepo();
+    const v = createViewer({ source: new SiteSource(r.client(), uniq("cache"), 0), repository: "acme/docs", key: "k", secret: "s" });
+    const { port } = await v.listen();
+    after(() => v.close());
+    const c = { cookie: "idc365_view=s" };
+    return (path: string) => get(port, path, c);
+  }
+  const active = (body: string) => /<nav class="tabs"[^]*?<a href="[^"]*" class="active" aria-current="true">([^<]+)<\/a>/.exec(body)?.[1];
+  const menuGroups = (body: string) => [...(/<nav class="side"[^]*?<\/nav>/.exec(body)?.[0] ?? "").matchAll(/<h2>([^<]+)<\/h2>/g)].map((m) => m[1]);
+  test("tabs: All, ADR, Procedures, Tech stack, Releases, Attachments, Code, as plain links in the URL", async () => {
+    const page = (await (await viewer())("/v/main/")).body;
+    assert.deepEqual(TABS.map((t) => t.label), ["All", "ADR", "Procedures", "Tech stack", "Releases", "Attachments", "Code"]);
+    assert.match(page, /<nav class="tabs" aria-label="Document types"><a href="\/v\/main\/" class="active" aria-current="true">All<\/a><a href="\/v\/main\/\?t=adr">ADR<\/a><a href="\/v\/main\/\?t=procedure">Procedures<\/a><a href="\/v\/main\/\?t=techstack">Tech stack<\/a><a href="\/v\/main\/\?t=release">Releases<\/a><a href="\/v\/main\/\?t=attachment">Attachments<\/a><a href="\/v\/main\/\?t=shadow">Code<\/a><\/nav>/);
+    assert.equal(tabOf("nope"), "all");
+    assert.equal(tabOf("techstack"), "techstack");
+  });
+  test("the menu shows only the selected type; All shows every group", async () => {
+    const g = await viewer();
+    assert.deepEqual(menuGroups((await g("/v/main/")).body), ["Architecture decisions", "Procedures", "Tech stack", "Releases", "Attachments", "Code"]);
+    const adr = (await g("/v/main/?t=adr")).body;
+    assert.deepEqual(menuGroups(adr), ["Architecture decisions"]);
+    assert.equal(active(adr), "ADR");
+    assert.doesNotMatch(/<nav class="side"[^]*?<\/nav>/.exec(adr)![0], /TECH-0001/);
+  });
+  test("the start page is filtered by the tab", async () => {
+    const g = await viewer();
+    const tech = (await g("/v/main/?t=techstack")).body;
+    const rows = [...tech.matchAll(/<tr><td><a href="[^"]+">([^<]+)<\/a>/g)].map((m) => m[1]);
+    assert.deepEqual(rows.sort(), ["TECH-0001", "TECH-0002"]);
+    assert.match(tech, /main: 2 documents of type Tech stack\./);
+    const all = (await g("/v/main/")).body;
+    assert.ok([...all.matchAll(/<tr><td>/g)].length > 2);
+  });
+  test("a document page activates its own type's tab; relations to other types lead to pages with their own tab", async () => {
+    const g = await viewer();
+    const adr = (await g("/v/main/docs/adr/0001-store-data-in-postgresql.html?t=techstack")).body;
+    assert.equal(active(adr), "ADR");
+    assert.match(adr, /<a href="\.\.\/techstack\/0001-postgresql\.html">TECH-0001<\/a>/);
+    assert.equal(active((await g("/v/main/docs/techstack/0001-postgresql.html")).body), "Tech stack");
+    assert.equal(active((await g("/v/main/code/idconnectdk/idc365/src/db.ts.html")).body), "Code");
+  });
+  test("search covers every type whatever the tab, and shows each result's type", async () => {
+    const g = await viewer();
+    const r = (await g("/search?v=main&t=adr&q=postgresql")).body;
+    assert.equal(active(r), "ADR", "the tab stays for the menu");
+    const types = [...r.matchAll(/<li><span class="type">([^<]+)<\/span>/g)].map((m) => m[1]);
+    assert.ok(types.includes("ADR") && types.includes("Tech stack"), types.join());
+    assert.match(r, /all types/);
+  });
+  test("the tab is kept across a version switch", async () => {
+    const g = await viewer();
+    assert.match((await g("/v/main/?t=techstack")).body, /<input type="hidden" name="t" value="techstack">/);
+    assert.equal((await g("/switch?v=v0.2.0&p=&t=techstack")).headers.location, "/v/v0.2.0/?t=techstack");
+    assert.equal((await g("/switch?v=v0.2.0&p=docs/techstack/0001-postgresql.html&t=techstack")).headers.location, "/v/v0.2.0/docs/techstack/0001-postgresql.html");
+    assert.equal((await g("/switch?v=v0.2.0&p=docs/adr/0099-none.html&t=adr")).headers.location, "/v/v0.2.0/?t=adr", "a missing page falls back to the tab's start page");
+    assert.equal((await g("/switch?v=v0.2.0&t=evil")).headers.location, "/v/v0.2.0/");
   });
 });
 

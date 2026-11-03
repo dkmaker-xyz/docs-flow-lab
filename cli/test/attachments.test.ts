@@ -134,7 +134,7 @@ describe("att create", () => {
     }
     const v = validateTree(root);
     assert.deepEqual(v.findings, []);
-    assert.deepEqual(v.notes.map((n) => n.message), ["nothing links to ATT-0001"]);
+    assert.deepEqual(v.notes.filter((n) => !n.message.startsWith("priming is")).map((n) => n.message), ["nothing links to ATT-0001"]);
   });
   test("an existing .gitattributes is kept and only completed", () => {
     const c = config();
@@ -182,7 +182,7 @@ describe("checkFile and validation notes", () => {
     writeFileSync(p, readFileSync(p, "utf8").replace("state: accepted", "state: superseded"));
     const v = validateTree(root);
     assert.deepEqual(v.findings, []);
-    assert.deepEqual(v.notes, [{ file: "docs/adr/0001-store-data-in-postgresql.md", message: "still links to the superseded ATT-0001" }]);
+    assert.deepEqual(v.notes.filter((n) => !n.message.startsWith("priming is")), [{ file: "docs/adr/0001-store-data-in-postgresql.md", message: "still links to the superseded ATT-0001" }]);
   });
   test("the new version that supersedes an attachment is not counted as still linking to it", () => {
     const root = join(temp, `sup-${Math.random().toString(36).slice(2)}`);

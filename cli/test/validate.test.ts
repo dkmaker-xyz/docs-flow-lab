@@ -155,12 +155,28 @@ describe("attachments", () => {
 
 describe("priming budget", () => {
   test("priming.budget", () => expectRule("priming.budget", (t) => t.write("config/priming.yaml", "priming_budget: 100\n"), ADR1));
-  test("fits when no document is featured", () => {
+  test("fits when no document is featured; the PR check reports the character count", () => {
     const r = validateTree(tree((t) => {
-      t.write("config/priming.yaml", "priming_budget: 2000\n");
+      t.write("config/priming.yaml", "priming_budget: 5000\n");
       t.edit(ADR1, (s) => s.replace("featured: true\n", ""));
     }));
     assert.deepEqual(r.findings, []);
+    assert.match(r.notes[0]!.message, /^priming is [0-9]+ characters of 5000 \(instructions with sample release text [0-9]+; featured: none\)$/);
+    assert.equal(r.notes[0]!.file, "config/instructions.md");
+  });
+  test("the instructions count: a long instruction text alone goes over the budget", () => {
+    const r = validateTree(tree((t) => {
+      t.write("config/priming.yaml", "priming_budget: 5000\n");
+      t.edit(ADR1, (s) => s.replace("featured: true\n", ""));
+      t.edit("config/instructions.md", (s) => s + "\n" + "Extra line of instructions. ".repeat(80));
+    }));
+    assert.deepEqual(r.findings.map((f) => `${f.rule} ${f.file}`), ["priming.budget config/instructions.md"]);
+    assert.match(r.findings[0]!.message, /over the budget of 5000/);
+  });
+  test("instructions.missing", () => expectRule("instructions.missing", (t) => t.remove("config/instructions.md"), "config/instructions.md"));
+  test("instructions.placeholder: missing or twice", () => {
+    expectRule("instructions.placeholder", (t) => t.edit("config/instructions.md", (s) => s.replace("{{commands}}", "")), "config/instructions.md");
+    expectRule("instructions.placeholder", (t) => t.edit("config/instructions.md", (s) => s + "\n{{featured}}\n"), "config/instructions.md");
   });
 });
 

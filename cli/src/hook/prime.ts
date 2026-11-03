@@ -2,8 +2,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { findGitRoot, originRepository } from "../docs/gitrepo.js";
-import { charCount, isRecord, parseYaml, primingFeatured, primingHead, splitFrontmatter } from "../engine/index.js";
-import { GitHubClient, GitHubError, readFile } from "../github/index.js";
+import { charCount, composeInstructions, FALLBACK_INSTRUCTIONS, INSTRUCTIONS_FILE, isRecord, parseYaml, placeholderProblems, primingFeatured, splitFrontmatter } from "../engine/index.js";
+import { encodePath, GitHubClient, GitHubError, readFile } from "../github/index.js";
 import { indexFileName } from "../index/model.js";
 import { fetchIndex } from "../index/read.js";
 import { currentRelease, listRels, type Resolution } from "../release/release.js";
@@ -30,6 +30,8 @@ export interface DocsBranchCache {
   docsBranch: string;
   budget: number;
   featured: FeaturedBody[];
+  /** config/instructions.md of the documentation branch, with its ETag. */
+  instructions?: { text: string; etag?: string };
 }
 
 /** What a code branch resolved to the last time it was primed online. */
@@ -124,28 +126,46 @@ export function releaseLines(r: Resolution, code: LocalCode): string[] {
 }
 
 /**
- * Composes the priming: head, then featured documents in index order while
- * they fit the budget (and Claude Code's cap); the rest are named so the
- * agent can read them with `show`.
+ * Composes the priming from the instruction text: its placeholders filled
+ * in, featured documents in index order while they fit the budget (and
+ * Claude Code's cap); the rest are named so the agent can read them with
+ * `show`. Featured documents are the first to go.
  */
-export function composePriming(docs: string, release: string[], warnings: string[], featured: FeaturedBody[], budget: number): string {
+export function composePriming(template: string, docs: string, release: string[], warnings: string[], featured: FeaturedBody[], budget: number): string {
   const limit = Math.min(budget, CLAUDE_CONTEXT_CAP);
-  const head = primingHead({ docs, release, warnings });
-  const parts = [head];
-  let used = charCount(head);
+  const vars = { docs, release, warnings };
+  let used = charCount(composeInstructions(template, vars, ""));
+  const blocks: string[] = [];
   const left: string[] = [];
   for (const f of featured) {
     const block = primingFeatured(f.id, f.title, f.body);
     const n = charCount(block) + 1;
     if (used + n <= limit) {
-      parts.push(block);
+      blocks.push(block);
       used += n;
     } else left.push(f.id);
   }
-  let text = parts.join("\n");
-  if (left.length) text += `\nFeatured documents left out to stay within the budget of ${limit} characters: ${left.join(", ")}. Read them with \`idc365-decisions <type> show <ID>\`.\n`;
-  // The head alone could only exceed the cap with an unusually long warning; cut as the last resort.
+  let featuredText = blocks.join("\n");
+  if (left.length) featuredText += `\nFeatured documents left out to stay within the budget of ${limit} characters: ${left.join(", ")}. Read them with \`idc365-decisions <type> show <ID>\`.\n`;
+  const text = composeInstructions(template, vars, featuredText);
+  // Only an instruction text far over the budget gets here; cut as the last resort.
   return charCount(text) > CLAUDE_CONTEXT_CAP ? [...text].slice(0, CLAUDE_CONTEXT_CAP).join("") : text;
+}
+
+/** config/instructions.md at a ref, with the cached ETag; undefined when missing (the caller keeps its cached copy). */
+async function instructionsAt(client: GitHubClient, ref: string, previous: DocsBranchCache["instructions"]): Promise<DocsBranchCache["instructions"]> {
+  const res = await client.request<unknown>("GET", client.repoPath(`/contents/${encodePath(INSTRUCTIONS_FILE)}`), {
+    query: { ref },
+    accept: "application/vnd.github.raw+json",
+    headers: previous?.etag ? { "If-None-Match": previous.etag } : {},
+    allow: [304, 404],
+  });
+  if (res.status === 304) return previous;
+  if (res.status === 404) return previous;
+  const text = typeof res.data === "string" ? res.data : String(res.data ?? "");
+  // A text without its placeholders would drop the release and commands; keep the last good copy instead.
+  if (placeholderProblems(text).length) return previous;
+  return { text, etag: res.headers.get("etag") ?? undefined };
 }
 
 function timeoutFetch(base: typeof fetch, ms: number): typeof fetch {
@@ -168,7 +188,7 @@ async function online(client: GitHubClient, docs: string, o: PrimeOptions, code:
   const r = await currentRelease(client, o.cwd, rels);
   const docsBranch = r.ok ? r.docsBranch : "main";
   const previous = readJson<DocsBranchCache>(docsCacheFile(cacheDir, docs, docsBranch));
-  const [idx, budget] = await Promise.all([fetchIndex(client, docsBranch, cacheDir), budgetAt(client, docsBranch, previous?.budget ?? DEFAULT_BUDGET)]);
+  const [idx, budget, instructions] = await Promise.all([fetchIndex(client, docsBranch, cacheDir), budgetAt(client, docsBranch, previous?.budget ?? DEFAULT_BUDGET), instructionsAt(client, docsBranch, previous?.instructions)]);
   let indexNote: string | undefined;
   if (!idx.index) indexNote = `There is no index for \`${docsBranch}\` yet, so featured documents are not included; list them with \`idc365-decisions adr list --ref ${docsBranch}\`.`;
   else if (idx.stale) indexNote = `The index of \`${docsBranch}\` is being rebuilt; the featured documents are read from the branch itself.`;
@@ -184,7 +204,7 @@ async function online(client: GitHubClient, docs: string, o: PrimeOptions, code:
       return { id: d.id, title: d.title ?? "", path: d.path, sha, body: (split?.body ?? "").trim() };
     }),
   );
-  const cache: DocsBranchCache = { at: (o.now ?? new Date()).toISOString(), docs, docsBranch, budget, featured: featured.filter((f): f is FeaturedBody => !!f) };
+  const cache: DocsBranchCache = { at: (o.now ?? new Date()).toISOString(), docs, docsBranch, budget, featured: featured.filter((f): f is FeaturedBody => !!f), instructions };
   return { release: releaseLines(r, code), cache, indexNote };
 }
 
@@ -258,7 +278,7 @@ export async function prime(o: PrimeOptions): Promise<Primed> {
     writeJson(branchesFile(o.cacheDir, docs), branches);
     if (result.indexNote) warnings.push(result.indexNote);
     if (notice) warnings.push(notice);
-    return { context: composePriming(docs, result.release, warnings, result.cache.featured, result.cache.budget), mode: "online", docsBranch: result.cache.docsBranch, warnings };
+    return { context: composePriming(result.cache.instructions?.text ?? FALLBACK_INSTRUCTIONS, docs, result.release, warnings, result.cache.featured, result.cache.budget), mode: "online", docsBranch: result.cache.docsBranch, warnings };
   }
 
   // Offline or no token: the last priming of this code branch, else of main.
@@ -273,7 +293,7 @@ export async function prime(o: PrimeOptions): Promise<Primed> {
   if (cached) warnings.push(`Primed from the cache of ${cached.at.slice(0, 16).replace("T", " ")} UTC because the documentation repository could not be read: ${reason} The content may be out of date; tell the user what is missing before relying on it.`);
   else warnings.push(`No cached priming exists and the documentation repository could not be read: ${reason} Tell the user; decisions, procedures and the tech stack are not available until this is fixed.`);
   if (notice) warnings.push(notice);
-  return { context: composePriming(docs, release, warnings, cached?.featured ?? [], cached?.budget ?? DEFAULT_BUDGET), mode: cached ? "cache" : "none", docsBranch: cached ? docsBranch : undefined, warnings };
+  return { context: composePriming(cached?.instructions?.text ?? FALLBACK_INSTRUCTIONS, docs, release, warnings, cached?.featured ?? [], cached?.budget ?? DEFAULT_BUDGET), mode: cached ? "cache" : "none", docsBranch: cached ? docsBranch : undefined, warnings };
 }
 
 /** The hook output Claude Code reads from stdout. */
