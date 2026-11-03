@@ -3,8 +3,8 @@
  "ref": "release/v0.3.0",
  "kind": "branch",
  "repository": "dkmaker-xyz/docs-flow-lab",
- "sourceSha": "0e017decff48af2c3e2022f5fa555b605cdd7098",
- "generatedAt": "2026-11-03T05:50:03.278Z",
+ "sourceSha": "f827ebf29d14547227b009ee232abb5bb8b1f9ab",
+ "generatedAt": "2026-11-03T05:56:01.410Z",
  "documents": [
   {
    "id": "ADR-0052",
@@ -37,10 +37,10 @@
    "id": "ADR-0055",
    "type": "adr",
    "title": "Search runs in the app process",
-   "state": "accepted",
+   "state": "superseded",
    "page": "docs/adr/0055-search-runs-in-the-app-process.html",
    "intent": "Test 4.2: work on v0.2.0 has base release/v0.2.0.",
-   "date": "2026-11-02T23:33:32+01:00"
+   "date": "2026-11-03T05:55:53Z"
   },
   {
    "id": "ADR-0056",
@@ -50,6 +50,15 @@
    "page": "docs/adr/0056-keep-one-overview-diagram.html",
    "intent": "Test 5.3: a document linking to ATT-0001.",
    "date": "2026-11-03T00:35:11+01:00"
+  },
+  {
+   "id": "ADR-0057",
+   "type": "adr",
+   "title": "Search runs as a separate service",
+   "state": "accepted",
+   "page": "docs/adr/0057-search-runs-as-a-separate-service.html",
+   "intent": "Where search runs from v0.3.0; read before changing search.",
+   "date": "2026-11-03T06:53:58+01:00"
   },
   {
    "id": "ATT-0001",
@@ -148,7 +157,7 @@
    "state": "accepted",
    "page": "docs/techstack/0005-node-js-base-image.html",
    "intent": "Approved Node.js base image for the test apps.",
-   "date": "2026-11-03T00:10:49+01:00"
+   "date": "2026-11-03T05:55:53Z"
   },
   {
    "id": "TECH-0006",
