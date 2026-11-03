@@ -1,0 +1,32 @@
+<article class="doc" data-id="ADR-0057">
+<p class="meta"><span class="badge s-accepted">accepted</span> · <span class="id">ADR-0057</span> · Architecture decision · architecture · updated 2026-11-03</p>
+<h1>Search runs as a separate service</h1>
+<p class="intent">Where search runs from v0.3.0; read before changing search.</p>
+<nav class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul>
+<li class="d2"><a href="#context">Context</a></li>
+<li class="d2"><a href="#decision">Decision</a></li>
+<li class="d3"><a href="#rollout">Rollout</a></li>
+<li class="d2"><a href="#consequences">Consequences</a></li>
+</ul></nav>
+<div class="body"><h2 id="context">Context</h2>
+<p>Search inside the app process (<a href="./0055-search-runs-in-the-app-process.html">ADR-0055</a>) cannot keep up with the larger indexes planned for v0.3.0.</p>
+<h2 id="decision">Decision</h2>
+<p>From v0.3.0, search runs as a separate service next to the app. The app calls it over HTTP. The service keeps its own index and is deployed with the same container base image as the app (<a href="../techstack/0005-node-js-base-image.html">TECH-0005</a>).</p>
+<h3 id="rollout">Rollout</h3>
+<p>The service ships with v0.3.0; the in-process search is removed in the same release.</p>
+<h2 id="consequences">Consequences</h2>
+<ul>
+<li>One more service to deploy and monitor.</li>
+<li>The app no longer holds the search index in memory.</li>
+</ul>
+</div>
+<section class="relations"><h2 id="relations">Relations</h2>
+<h3>This document</h3><ul>
+<li><span class="rtype">supersedes</span> <a href="0055-search-runs-in-the-app-process.html">ADR-0055</a> Search runs in the app process<span class="why">search moves to its own service in v0.3.0</span></li>
+<li><span class="rtype">relates-to</span> <a href="../techstack/0005-node-js-base-image.html">TECH-0005</a> Node.js base image<span class="why">the service uses the approved Node.js base image</span></li>
+</ul>
+<h3>Other documents</h3><ul>
+<li><a href="../techstack/0005-node-js-base-image.html">TECH-0005</a> Node.js base image <span class="rtype">relates to this</span><span class="why">the service uses the approved Node.js base image</span></li>
+</ul>
+</section>
+</article>
