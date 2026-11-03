@@ -15,6 +15,8 @@ jira_fix_version: 0.2.0
 planned_date: 2026-12-15
 relations: []
 released_date: 2026-11-02
+patches:
+  - v0.2.1
 ---
 ## Scope
 
