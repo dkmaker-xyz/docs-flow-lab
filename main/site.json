@@ -3,8 +3,8 @@
  "ref": "main",
  "kind": "branch",
  "repository": "dkmaker-xyz/docs-flow-lab",
- "sourceSha": "4fda0b58ee157efd80b104c4a97e5f0001693a6e",
- "generatedAt": "2026-11-03T07:48:09.000Z",
+ "sourceSha": "61e991e0753d2b2e0589f00ccd8650c85081cf17",
+ "generatedAt": "2026-11-03T07:52:16.000Z",
  "documents": [
   {
    "id": "ADR-0052",
