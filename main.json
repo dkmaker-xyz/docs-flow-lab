@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "59a62422e0c5f5e111e0b878efea3116e2607455",
-  "generatedAt": "2026-11-03T05:09:38.118Z",
+  "sourceSha": "50398d7eb9c15a41447898129aa6a159addb9f41",
+  "generatedAt": "2026-11-03T05:46:22.164Z",
   "base": null,
   "documents": [
     {
@@ -524,6 +524,33 @@
       "commit": {
         "sha": "8d1dbc311ecd9c194eeac1bee22beac94a6bab4b",
         "date": "2026-11-03T00:10:56+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "TECH-0007",
+      "type": "techstack",
+      "path": "docs/techstack/0007-marked.md",
+      "slug": "marked",
+      "title": "marked",
+      "description": "Markdown-to-HTML renderer for the documentation site.",
+      "intent": "Approved Markdown renderer for the idc365-decisions documentation site.",
+      "when": "When rendering Markdown to HTML in the CLI.",
+      "state": "accepted",
+      "category": "library",
+      "featured": false,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "a9e666ac570961c3da9368b6b4eb036e91160c49",
+        "date": "2026-11-03T06:43:11+01:00"
       },
       "mergedBy": "dkmaker"
     }
