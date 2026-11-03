@@ -37,8 +37,9 @@ function checkout(): string {
 describe("rendering", () => {
   let files: Map<string, string>;
   let manifest: SiteManifest;
+  let root: string;
   before(async () => {
-    const root = checkout();
+    root = checkout();
     ({ files, manifest } = await buildSite({ root, ref: "main", kind: "branch", repository: "acme/docs", git: localGit(root) }));
   });
   test("one page per document plus site.json and search.json; folder and page names", () => {
@@ -49,6 +50,7 @@ describe("rendering", () => {
     assert.deepEqual([folderName("main"), folderName("release/v0.3.0"), folderName("v0.2.0")], ["main", "release__v0.3.0", "v0.2.0"]);
     assert.equal(refOfFolder("release__v0.3.0"), "release/v0.3.0");
     assert.equal(pagePath("docs\\adr\\0001-x.md"), "docs/adr/0001-x.html", "Windows separators become /");
+    assert.equal(manifest.generatedAt, new Date(git(root, "log", "-1", "--format=%cI")).toISOString(), "deterministic: the commit date");
   });
   test("superseded banner links the replacing document; relations in both directions with why", () => {
     const old = files.get("docs/adr/0002-partner-event-api.html")!;

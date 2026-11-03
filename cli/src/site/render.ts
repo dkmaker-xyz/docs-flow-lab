@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { Marked, type Tokens } from "marked";
@@ -318,6 +319,14 @@ const MEDIA_EXT: Record<string, string> = {
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
 };
 
+function commitDate(root: string): Date {
+  try {
+    return new Date(execFileSync("git", ["log", "-1", "--format=%cI"], { cwd: root, encoding: "utf8" }).trim());
+  } catch {
+    return new Date(0);
+  }
+}
+
 export interface BuildSiteOptions {
   root: string;
   ref: string;
@@ -329,7 +338,8 @@ export interface BuildSiteOptions {
 
 /** Renders a checkout into the files of one site folder (paths relative to the folder). */
 export async function buildSite(o: BuildSiteOptions): Promise<{ manifest: SiteManifest; files: Map<string, string> }> {
-  const index = await buildIndex({ root: o.root, branch: o.ref, git: o.git, now: o.now });
+  // generatedAt is the source commit's date (not the clock), so rendering the same commit twice gives identical files and publish skips it.
+  const index = await buildIndex({ root: o.root, branch: o.ref, git: o.git, now: o.now ?? (() => commitDate(o.root)) });
   const byId = new Map(index.documents.map((d) => [d.id, d]));
   const files = new Map<string, string>();
   const search: SearchEntry[] = [];
