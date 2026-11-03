@@ -1,0 +1,64 @@
+{
+ "schema": 1,
+ "ref": "v0.2.0",
+ "kind": "tag",
+ "repository": "dkmaker-xyz/docs-flow-lab",
+ "sourceSha": "cbd40833fef17b4fb08b0b88c972657e20acade7",
+ "generatedAt": "2026-11-03T05:47:25.367Z",
+ "documents": [
+  {
+   "id": "ADR-0052",
+   "type": "adr",
+   "title": "Store test documents as markdown",
+   "state": "superseded",
+   "page": "docs/adr/0052-store-test-documents-as-markdown.html",
+   "intent": "First test decision; superseded in the phase 5 test.",
+   "date": "2026-11-02T21:53:57Z"
+  },
+  {
+   "id": "ADR-0053",
+   "type": "adr",
+   "title": "Store test documents as markdown with frontmatter",
+   "state": "accepted",
+   "page": "docs/adr/0053-store-test-documents-as-markdown-with-frontmatter.html",
+   "intent": "Second test decision; supersedes ADR-0052 in the phase 5 test.",
+   "date": "2026-11-02T22:36:03Z"
+  },
+  {
+   "id": "ADR-0054",
+   "type": "adr",
+   "title": "Clarify the frontmatter decision",
+   "state": "accepted",
+   "page": "docs/adr/0054-clarify-the-frontmatter-decision.html",
+   "intent": "Test 4.4: a fix on v0.1.1 merged to main.",
+   "date": "2026-11-02T23:18:11+01:00"
+  },
+  {
+   "id": "ADR-0055",
+   "type": "adr",
+   "title": "Search runs in the app process",
+   "state": "accepted",
+   "page": "docs/adr/0055-search-runs-in-the-app-process.html",
+   "intent": "Test 4.2: work on v0.2.0 has base release/v0.2.0.",
+   "date": "2026-11-02T23:33:32+01:00"
+  },
+  {
+   "id": "CODE:dkmaker-xyz/docs-flow-lab-app/search.txt",
+   "type": "shadow",
+   "title": "dkmaker-xyz/docs-flow-lab-app/search.txt",
+   "state": "",
+   "page": "code/dkmaker-xyz/docs-flow-lab-app/search.txt.html",
+   "intent": "",
+   "date": "2026-11-02T22:36:27Z"
+  },
+  {
+   "id": "REL-0001",
+   "type": "release",
+   "title": "Release v0.2.0",
+   "state": "accepted",
+   "page": "docs/release/0001-release-v0-2-0.html",
+   "intent": "What release v0.2.0 is and where its documentation and code live.",
+   "date": "2026-11-02T23:54:53+01:00"
+  }
+ ]
+}
