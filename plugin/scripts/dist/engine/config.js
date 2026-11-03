@@ -27,7 +27,9 @@ export function loadConfig(root) {
     return loadConfigFromFiles(files);
 }
 /** Same as loadConfig, from config/*.yaml contents already in memory (for example read from GitHub). */
-export function loadConfigFromFiles(files) {
+export function loadConfigFromFiles(all) {
+    // Only the YAML files are configuration; config/instructions.md is the session text (checked separately).
+    const files = all.filter((f) => f.name.endsWith(".yaml"));
     const findings = [];
     if (files.length === 0) {
         return { findings: [{ file: CONFIG_DIR, rule: "config.missing", message: "no config/*.yaml files in the documentation tree", nextAction: "Add the configuration files under config/ via PR." }] };

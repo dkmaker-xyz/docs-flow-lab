@@ -6,6 +6,10 @@ description: Use for anything about this project's architecture decisions (ADR),
 
 The documentation repository `dkmaker-xyz/docs-flow-lab` holds the project's decisions, procedures, approved tech stack and releases. The `idc365-decisions` CLI is the way to read and write it; run it in the Bash or PowerShell tool.
 
+## How to work
+
+Run `idc365-decisions instructions` and follow what it prints: the project's instructions for working with the official documentation (the same text the session started with, from `config/instructions.md` in the documentation repository), with the release of the current branch and the featured documents.
+
 ## When to use it
 
 - Before designing or changing code: `idc365-decisions adr list` and `idc365-decisions adr show <ID>` for the decisions that apply.

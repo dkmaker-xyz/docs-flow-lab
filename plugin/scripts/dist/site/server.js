@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { posix } from "node:path";
-import { escapeHtml, FOLDER_RE, refOfFolder, TYPE_LABELS, TYPE_ORDER } from "./render.js";
+import { displayId, escapeHtml, extraTitle, FOLDER_RE, refOfFolder, TYPE_LABELS, TYPE_ORDER } from "./render.js";
 import { SITE_CSS, SITE_JS } from "./assets.js";
 /**
  * The local documentation viewer (phase 11): Node's http server on
@@ -75,27 +75,48 @@ function versionSort(a, b) {
             return (y[i] ?? 0) - (x[i] ?? 0);
     return 0;
 }
-function layout(ctx, title, main, q = "", page = "") {
+/** The type tabs: "all" plus one per document type (the tab is the `t` query parameter). */
+export const TABS = [
+    { id: "all", label: "All" },
+    { id: "adr", label: "ADR" },
+    { id: "procedure", label: "Procedures" },
+    { id: "techstack", label: "Tech stack" },
+    { id: "release", label: "Releases" },
+    { id: "attachment", label: "Attachments" },
+    { id: "shadow", label: "Code" },
+];
+const TAB_IDS = new Set(TABS.map((t) => t.id));
+/** A valid tab from the query, else "all". */
+export function tabOf(value) {
+    return value && TAB_IDS.has(value) ? value : "all";
+}
+const tabLabel = (type) => TABS.find((t) => t.id === type)?.label ?? type;
+const startUrl = (folder, tab) => `/v/${folder}/${tab === "all" ? "" : `?t=${tab}`}`;
+function tabsBar(ctx, tab) {
+    return `<nav class="tabs" aria-label="Document types">${TABS.map((t) => `<a href="${escapeHtml(startUrl(ctx.folder, t.id))}"${t.id === tab ? ' class="active" aria-current="true"' : ""}>${escapeHtml(t.label)}</a>`).join("")}</nav>`;
+}
+function layout(ctx, title, main, q = "", page = "", tab = "all") {
     const versions = ctx
         ? `<form class="version" action="/switch" method="get"><label for="v">Version</label> <select id="v" name="v">${ctx.versions
             .map((f) => `<option value="${escapeHtml(f)}"${f === ctx.folder ? " selected" : ""}>${escapeHtml(versionLabel(f))}</option>`)
-            .join("")}</select><input type="hidden" name="p" value="${escapeHtml(page)}"><noscript><button>Go</button></noscript></form>`
+            .join("")}</select><input type="hidden" name="p" value="${escapeHtml(page)}"><input type="hidden" name="t" value="${escapeHtml(tab)}"><noscript><button>Go</button></noscript></form>`
         : "";
     const search = ctx
-        ? `<form class="search" action="/search" method="get" role="search"><input type="hidden" name="v" value="${escapeHtml(ctx.folder)}"><input type="search" name="q" value="${escapeHtml(q)}" placeholder="Search ID, title or text" aria-label="Search"><button>Search</button></form>`
+        ? `<form class="search" action="/search" method="get" role="search"><input type="hidden" name="v" value="${escapeHtml(ctx.folder)}"><input type="hidden" name="t" value="${escapeHtml(tab)}"><input type="search" name="q" value="${escapeHtml(q)}" placeholder="Search ID, title or text" aria-label="Search"><button>Search</button></form>`
         : "";
-    const nav = ctx ? navigation(ctx, page) : "";
+    const nav = ctx ? navigation(ctx, page, tab) : "";
     const notes = ctx?.notes.length ? ctx.notes.map((n) => `<p class="note">${escapeHtml(n)}</p>`).join("") : "";
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} · IDC365 decisions</title><link rel="stylesheet" href="/assets/style.css"><script src="/assets/app.js" defer></script></head>
 <body><header class="top"><a class="home" href="${ctx ? `/v/${escapeHtml(ctx.folder)}/` : "/"}">IDC365 decisions</a>${search}${versions}</header>
-<div class="wrap">${nav}<main>${notes}${main}</main></div></body></html>
+${ctx ? tabsBar(ctx, tab) : ""}<div class="wrap">${nav}<main>${notes}${main}</main></div></body></html>
 `;
 }
-function navigation(ctx, current) {
+/** The left menu: the documents of the selected tab; on "All" every type, grouped. */
+function navigation(ctx, current, tab = "all") {
     const out = [`<nav class="side" aria-label="Documents">`];
-    for (const type of TYPE_ORDER) {
+    for (const type of tab === "all" ? TYPE_ORDER : [tab]) {
         const docs = ctx.manifest.documents.filter((d) => d.type === type);
         out.push(`<h2>${escapeHtml(TYPE_LABELS[type] ?? type)}</h2>`);
         if (!docs.length) {
@@ -113,7 +134,9 @@ function navigation(ctx, current) {
     return out.join("");
 }
 function badge(state) {
-    return `<span class="badge s-${escapeHtml(state.toLowerCase().replace(/[^a-z0-9]+/g, "-"))}">${escapeHtml(state || "unknown")}</span>`;
+    if (!state)
+        return "";
+    return `<span class="badge s-${escapeHtml(state.toLowerCase().replace(/[^a-z0-9]+/g, "-"))}">${escapeHtml(state)}</span>`;
 }
 /** Search over ID, title and body text; every term must match. An exact ID comes first. */
 export function searchEntries(entries, query) {
@@ -206,7 +229,8 @@ export function createViewer(o) {
             const p = safePage(url.searchParams.get("p") ?? "");
             const m = p ? await o.source.manifest(v) : undefined;
             const exists = p && m?.data?.documents.some((d) => d.page === p);
-            return send(res, 302, "", "text/plain", { Location: `/v/${v}/${exists ? p : ""}` });
+            const t = tabOf(url.searchParams.get("t"));
+            return send(res, 302, "", "text/plain", { Location: exists ? `/v/${v}/${p}` : startUrl(v, t) });
         }
         if (url.pathname === "/search") {
             const v = url.searchParams.get("v") ?? "main";
@@ -217,9 +241,11 @@ export function createViewer(o) {
                 return plain(res, 404, "This version is not rendered.");
             const q = url.searchParams.get("q") ?? "";
             const entries = (await o.source.search(v)).data ?? [];
+            // Search always covers every type; the tab only decides the menu.
+            const tab = tabOf(url.searchParams.get("t"));
             const hits = searchEntries(entries, q);
-            const rows = hits.map((h) => `<li><a href="/v/${escapeHtml(v)}/${escapeHtml(h.page)}"><span class="id">${escapeHtml(h.id)}</span> ${escapeHtml(h.title)}</a> ${badge(h.state)}</li>`).join("");
-            return send(res, 200, layout(ctx, `Search: ${q}`, `<h1>Search</h1><p class="count">${hits.length} result${hits.length === 1 ? "" : "s"} for “${escapeHtml(q)}” in ${escapeHtml(versionLabel(v))}</p><ul class="results">${rows}</ul>`, q));
+            const rows = hits.map((h) => `<li><span class="type">${escapeHtml(tabLabel(h.type))}</span> <a href="/v/${escapeHtml(v)}/${escapeHtml(h.page)}"><span class="id">${escapeHtml(displayId(h.id))}</span>${extraTitle(h.id, h.title) ? ` ${escapeHtml(h.title)}` : ""}</a> ${badge(h.state)}</li>`).join("");
+            return send(res, 200, layout(ctx, `Search: ${q}`, `<h1>Search</h1><p class="count">${hits.length} result${hits.length === 1 ? "" : "s"} for “${escapeHtml(q)}” in ${escapeHtml(versionLabel(v))}, all types</p><ul class="results">${rows}</ul>`, q, "", tab));
         }
         const m = /^\/v\/([^/]+)\/(.*)$/.exec(url.pathname);
         if (m) {
@@ -230,19 +256,21 @@ export function createViewer(o) {
             if (!ctx)
                 return plain(res, 404, "This version is not rendered.");
             if (m[2] === "") {
-                const recent = [...ctx.manifest.documents].filter((d) => d.date).sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || a.id.localeCompare(b.id)).slice(0, 30);
-                const rows = recent.map((d) => `<tr><td><a href="/v/${escapeHtml(folder)}/${escapeHtml(d.page)}">${escapeHtml(d.id.startsWith("CODE:") ? "CODE" : d.id)}</a></td><td>${escapeHtml(d.title)}</td><td>${badge(d.state)}</td><td>${escapeHtml((d.date ?? "").slice(0, 10))}</td></tr>`).join("");
-                const main = `<h1>Recent changes</h1><p class="intro">${escapeHtml(o.repository)}, ${escapeHtml(versionLabel(folder))}: ${ctx.manifest.documents.length} documents.</p><table class="recent"><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table>`;
-                return send(res, 200, layout(ctx, "Recent changes", main));
+                const tab = tabOf(url.searchParams.get("t"));
+                const shown = ctx.manifest.documents.filter((d) => tab === "all" || d.type === tab);
+                const recent = [...shown].filter((d) => d.date).sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || a.id.localeCompare(b.id)).slice(0, 30);
+                const rows = recent.map((d) => `<tr><td><a href="/v/${escapeHtml(folder)}/${escapeHtml(d.page)}">${escapeHtml(displayId(d.id))}</a></td><td>${escapeHtml(extraTitle(d.id, d.title))}</td><td>${badge(d.state)}</td><td>${escapeHtml((d.date ?? "").slice(0, 10))}</td></tr>`).join("");
+                const main = `<h1>Recent changes</h1><p class="intro">${escapeHtml(o.repository)}, ${escapeHtml(versionLabel(folder))}: ${shown.length} ${tab === "all" ? "documents" : `documents of type ${escapeHtml(tabLabel(tab))}`}.</p><table class="recent"><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table>`;
+                return send(res, 200, layout(ctx, "Recent changes", main, "", "", tab));
             }
             const page = safePage(m[2]);
             if (!page)
                 return plain(res, 404, "Not a page.");
             const f = await o.source.page(folder, page);
             if (f.status !== 200)
-                return send(res, 404, layout(ctx, "Not found", `<h1>Not in this version</h1><p>${escapeHtml(page)} does not exist in ${escapeHtml(versionLabel(folder))}.</p>`, "", page));
+                return send(res, 404, layout(ctx, "Not found", `<h1>Not in this version</h1><p>${escapeHtml(page)} does not exist in ${escapeHtml(versionLabel(folder))}.</p>`, "", page, tabOf(url.searchParams.get("t"))));
             const doc = ctx.manifest.documents.find((d) => d.page === page);
-            return send(res, 200, layout(ctx, doc ? `${doc.id} ${doc.title}` : page, f.body, "", page));
+            return send(res, 200, layout(ctx, doc ? `${doc.id} ${doc.title}` : page, f.body, "", page, doc ? tabOf(doc.type) : "all"));
         }
         return plain(res, 404, "Not found.");
     }

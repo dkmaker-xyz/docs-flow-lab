@@ -7,6 +7,10 @@ a{color:var(--link)}
 .home{font-weight:600;text-decoration:none;color:var(--fg);margin-right:auto}
 .search{display:flex;gap:.3rem}.search input{width:18rem;max-width:50vw}
 input,select,button{font:inherit;padding:.25rem .5rem;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg)}
+.tabs{display:flex;flex-wrap:wrap;gap:.2rem;padding:0 1rem;border-bottom:1px solid var(--line)}
+.tabs a{padding:.45rem .8rem;text-decoration:none;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a.active{color:var(--fg);font-weight:600;border-bottom-color:var(--link)}
+.results .type{display:inline-block;min-width:6.5rem;color:var(--muted);font-size:.85rem}
 .wrap{display:flex;align-items:flex-start}
 .side{width:18rem;flex:none;padding:1rem;background:var(--side);border-right:1px solid var(--line);min-height:calc(100vh - 3rem);font-size:.9rem}
 .side h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:1rem 0 .3rem}
