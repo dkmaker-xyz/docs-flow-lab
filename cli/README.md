@@ -219,7 +219,8 @@ What the workflows rely on, set up once by an owner:
     check, no creation, deletion or force push;
   - `release-tags` (`v*` tags): no creation, update or deletion;
   - `meta-ids` (`meta/ids`): no deletion or force push;
-  - `meta-index` (`meta/index`), `meta-plugin` (`meta/plugin`) and
+  - `meta-index` (`meta/index`, which also holds post-merge's record of the
+    last handled commit per truth branch), `meta-plugin` (`meta/plugin`) and
     `meta-site` (`meta/site`): no creation, update, deletion or force push.
 - Workflows: `docs-validate`, `docs-post-merge`, `docs-index-trigger`,
   `docs-index`, `docs-index-remove`, `docs-site`, `plugin-build`.
