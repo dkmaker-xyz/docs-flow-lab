@@ -16,6 +16,13 @@ name: Documentation post-merge
 # variable. The run is idempotent: with nothing to do it writes nothing, so
 # the bot's own commit (which triggers this workflow again) does not loop.
 # Actions are pinned to commit SHAs (tag in the comment).
+#
+# Lost runs: GitHub keeps only one *pending* run per concurrency group, so a
+# queued run can be cancelled by a newer push (for example the bot's own
+# commit). Each run therefore handles everything since the last commit that
+# post-merge finished (`--marker`: post-merge/<branch>.json on meta/index,
+# bot-only), not only its own push; it records its commit when done. Every
+# step is idempotent, so handling a commit twice changes nothing.
 
 on:
   push:
@@ -50,21 +57,24 @@ jobs:
         working-directory: cli
         run: npm ci && npm run build
 
-      - name: Plan and validate (no token)
+      - name: Plan and validate (read-only token)
         id: plan
         env:
+          # Reads the last handled commit from meta/index; cannot write.
+          IDC365_DECISIONS_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.sha }}
         run: |
-          node cli/dist/index.js post-merge --dry-run --branch "$BRANCH" --before "$BEFORE" --after "$AFTER" --json > "$RUNNER_TEMP/plan.json"
+          node cli/dist/index.js post-merge --dry-run --marker --branch "$BRANCH" --before "$BEFORE" --after "$AFTER" --json > "$RUNNER_TEMP/plan.json"
           cat "$RUNNER_TEMP/plan.json"
           outcome=$(node -p "require(process.env.RUNNER_TEMP + '/plan.json').outcome")
           echo "outcome=$outcome" >> "$GITHUB_OUTPUT"
           git checkout -- .
 
       - name: Bot token
-        if: steps.plan.outputs.outcome == 'dry-run'
+        # Also when there is nothing to do: the run still records its commit as handled.
+        if: steps.plan.outputs.outcome == 'dry-run' || steps.plan.outputs.outcome == 'nothing'
         id: bot
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
@@ -73,10 +83,10 @@ jobs:
           permission-contents: write
 
       - name: Commit the edits
-        if: steps.plan.outputs.outcome == 'dry-run'
+        if: steps.plan.outputs.outcome == 'dry-run' || steps.plan.outputs.outcome == 'nothing'
         env:
           IDC365_DECISIONS_TOKEN: ${{ steps.bot.outputs.token }}
           BRANCH: ${{ github.ref_name }}
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.sha }}
-        run: node cli/dist/index.js post-merge --branch "$BRANCH" --before "$BEFORE" --after "$AFTER" | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node cli/dist/index.js post-merge --marker --branch "$BRANCH" --before "$BEFORE" --after "$AFTER" | tee -a "$GITHUB_STEP_SUMMARY"

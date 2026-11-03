@@ -156,6 +156,29 @@ export function mergedBranch(root: string, after: string): string | undefined {
   return hit?.[0]?.replace(/^origin\//, "");
 }
 
+function gitOut(root: string, ...a: string[]): string | undefined {
+  try {
+    return execFileSync("git", a, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+/** Merge commits on the first-parent line in (before, after]; just `after` without a usable `before`. */
+export function mergesIn(root: string, before: string | undefined, after: string): string[] {
+  if (!before || ZERO.test(before)) return [after];
+  const list = gitOut(root, "rev-list", "--first-parent", `${before}..${after}`);
+  return list === undefined ? [after] : list.split("\n").filter(Boolean).reverse();
+}
+
+/** The first commit in (before, after] that recorded `version` in a REL file (phase released, or a patches entry). */
+export function recordedIn(root: string, before: string | undefined, after: string, file: string, version: string, released: boolean): string | undefined {
+  const range = before && !ZERO.test(before) ? `${before}..${after}` : after;
+  const pick = released ? ["-G", "^phase: *released"] : ["-S", version];
+  const out = gitOut(root, "log", "--first-parent", "--reverse", "--format=%H", ...pick, range, "--", file);
+  return out?.split("\n").find(Boolean);
+}
+
 /**
  * The release lifecycle after a push to a truth branch (spec 7.2, 7.5):
  * - a REL merged to main with phase planned: set phase development and
@@ -163,7 +186,7 @@ export function mergedBranch(root: string, after: string): string | undefined {
  * - release/vX.Y.Z merged into main: delete release/vX.Y.Z. A merge into a
  *   release branch, or between release branches, never deletes anything.
  */
-export function releaseHooks(docs: Map<string, Doc>, changed: Set<string> | "all", branch: string, root?: string, after?: string): { edits: Edit[]; actions: Action[] } {
+export function releaseHooks(docs: Map<string, Doc>, changed: Set<string> | "all", branch: string, root?: string, after?: string, before?: string): { edits: Edit[]; actions: Action[] } {
   const edits: Edit[] = [];
   const actions: Action[] = [];
   if (branch !== "main") return { edits, actions };
@@ -187,11 +210,18 @@ export function releaseHooks(docs: Map<string, Doc>, changed: Set<string> | "all
         const v = parseVersion(version);
         if (!v || tags.includes(version) || (highest && compareVersions(v, highest) <= 0)) continue;
         if (actions.some((a) => a.kind === "create-tag" && a.tag === version)) continue;
-        actions.push({ kind: "create-tag", tag: version, sha: after, reason: `${d.key} records ${version} as released` });
+        // The handled range can span several merges (a cancelled run): tag the commit that recorded the version.
+        const sha = recordedIn(root, before, after, d.file, version, d.fm.phase === "released" && d.fm.version === version) ?? after;
+        actions.push({ kind: "create-tag", tag: version, sha, reason: `${d.key} records ${version} as released` });
       }
     }
-    const merged = mergedBranch(root, after);
-    if (merged && RELEASE_BRANCH_RE.test(merged)) actions.push({ kind: "delete-branch", branch: merged, reason: `${merged} was merged into main` });
+    // Every merge in the handled range, not only the last commit (a cancelled run's merge is handled here).
+    for (const commit of mergesIn(root, before, after)) {
+      const merged = mergedBranch(root, commit);
+      if (merged && RELEASE_BRANCH_RE.test(merged) && !actions.some((a) => a.kind === "delete-branch" && a.branch === merged)) {
+        actions.push({ kind: "delete-branch", branch: merged, reason: `${merged} was merged into main` });
+      }
+    }
   }
   return { edits, actions };
 }
@@ -255,7 +285,7 @@ export async function postMerge(opts: {
   if (!loaded.config) return { changed: [], edits: [], actions: [], findings: loaded.findings, outcome: "invalid" };
   const docs = readTree(opts.root, loaded.config);
   const changed = changedFiles(opts.root, opts.before, opts.after);
-  const hooks = releaseHooks(docs, changed, opts.branch, opts.root, opts.after);
+  const hooks = releaseHooks(docs, changed, opts.branch, opts.root, opts.after, opts.before);
   const edits = combine([...planEdits(docs, changed), ...hooks.edits]);
   const actions: PostMergeResult["actions"] = hooks.actions;
   const changedList = changed === "all" ? "all" : [...changed].sort();
