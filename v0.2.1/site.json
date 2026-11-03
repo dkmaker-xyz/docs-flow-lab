@@ -1,0 +1,172 @@
+{
+ "schema": 1,
+ "ref": "v0.2.1",
+ "kind": "tag",
+ "repository": "dkmaker-xyz/docs-flow-lab",
+ "sourceSha": "d686c1b9fef3713f1aff09219e54d54f50843806",
+ "generatedAt": "2026-11-03T05:52:26.869Z",
+ "documents": [
+  {
+   "id": "ADR-0052",
+   "type": "adr",
+   "title": "Store test documents as markdown",
+   "state": "superseded",
+   "page": "docs/adr/0052-store-test-documents-as-markdown.html",
+   "intent": "First test decision; superseded in the phase 5 test.",
+   "date": "2026-11-02T21:53:57Z"
+  },
+  {
+   "id": "ADR-0053",
+   "type": "adr",
+   "title": "Store test documents as markdown with frontmatter",
+   "state": "accepted",
+   "page": "docs/adr/0053-store-test-documents-as-markdown-with-frontmatter.html",
+   "intent": "Second test decision; supersedes ADR-0052 in the phase 5 test.",
+   "date": "2026-11-02T22:36:03Z"
+  },
+  {
+   "id": "ADR-0054",
+   "type": "adr",
+   "title": "Clarify the frontmatter decision",
+   "state": "accepted",
+   "page": "docs/adr/0054-clarify-the-frontmatter-decision.html",
+   "intent": "Test 4.4: a fix on v0.1.1 merged to main.",
+   "date": "2026-11-02T23:18:11+01:00"
+  },
+  {
+   "id": "ADR-0055",
+   "type": "adr",
+   "title": "Search runs in the app process",
+   "state": "accepted",
+   "page": "docs/adr/0055-search-runs-in-the-app-process.html",
+   "intent": "Test 4.2: work on v0.2.0 has base release/v0.2.0.",
+   "date": "2026-11-02T23:33:32+01:00"
+  },
+  {
+   "id": "ADR-0056",
+   "type": "adr",
+   "title": "Keep one overview diagram",
+   "state": "accepted",
+   "page": "docs/adr/0056-keep-one-overview-diagram.html",
+   "intent": "Test 5.3: a document linking to ATT-0001.",
+   "date": "2026-11-03T00:35:11+01:00"
+  },
+  {
+   "id": "ATT-0001",
+   "type": "attachment",
+   "title": "System overview diagram",
+   "state": "superseded",
+   "page": "docs/attachment/0001-system-overview-diagram.html",
+   "intent": "Shows the parts of the test system; test 5.1.",
+   "date": "2026-11-02T23:37:44Z"
+  },
+  {
+   "id": "ATT-0002",
+   "type": "attachment",
+   "title": "System overview diagram v2",
+   "state": "accepted",
+   "page": "docs/attachment/0002-system-overview-diagram-v2.html",
+   "intent": "Test 5.3: new version superseding ATT-0001.",
+   "date": "2026-11-03T00:35:20+01:00"
+  },
+  {
+   "id": "CODE:dkmaker-xyz/docs-flow-lab-app",
+   "type": "shadow",
+   "title": "Repository structure",
+   "state": "accepted",
+   "page": "code/dkmaker-xyz/docs-flow-lab-app/_.html",
+   "intent": "Where each application lives and what applies before changing it.",
+   "date": "2026-11-03T00:57:31+01:00"
+  },
+  {
+   "id": "CODE:dkmaker-xyz/docs-flow-lab-app/search.txt",
+   "type": "shadow",
+   "title": "dkmaker-xyz/docs-flow-lab-app/search.txt",
+   "state": "",
+   "page": "code/dkmaker-xyz/docs-flow-lab-app/search.txt.html",
+   "intent": "",
+   "date": "2026-11-02T22:36:27Z"
+  },
+  {
+   "id": "REL-0001",
+   "type": "release",
+   "title": "Release v0.2.0",
+   "state": "accepted",
+   "page": "docs/release/0001-release-v0-2-0.html",
+   "intent": "What release v0.2.0 is and where its documentation and code live.",
+   "date": "2026-11-03T06:47:24+01:00"
+  },
+  {
+   "id": "REL-0002",
+   "type": "release",
+   "title": "Release v0.3.0",
+   "state": "accepted",
+   "page": "docs/release/0002-release-v0-3-0.html",
+   "intent": "What release v0.3.0 is and where its documentation and code live.",
+   "date": "2026-11-03T06:47:18+01:00"
+  },
+  {
+   "id": "TECH-0001",
+   "type": "techstack",
+   "title": "React",
+   "state": "accepted",
+   "page": "docs/techstack/0001-react.html",
+   "intent": "Approved React version for web apps.",
+   "date": "2026-11-03T00:10:22+01:00"
+  },
+  {
+   "id": "TECH-0002",
+   "type": "techstack",
+   "title": "TypeScript",
+   "state": "accepted",
+   "page": "docs/techstack/0002-typescript.html",
+   "intent": "Approved TypeScript for the test apps.",
+   "date": "2026-11-03T00:19:04+01:00"
+  },
+  {
+   "id": "TECH-0003",
+   "type": "techstack",
+   "title": "Spring Boot",
+   "state": "accepted",
+   "page": "docs/techstack/0003-spring-boot.html",
+   "intent": "Approved Spring Boot for the test apps.",
+   "date": "2026-11-03T00:10:35+01:00"
+  },
+  {
+   "id": "TECH-0004",
+   "type": "techstack",
+   "title": "Guava",
+   "state": "accepted",
+   "page": "docs/techstack/0004-guava.html",
+   "intent": "Approved Guava for the test apps.",
+   "date": "2026-11-03T00:10:42+01:00"
+  },
+  {
+   "id": "TECH-0005",
+   "type": "techstack",
+   "title": "Node.js base image",
+   "state": "accepted",
+   "page": "docs/techstack/0005-node-js-base-image.html",
+   "intent": "Approved Node.js base image for the test apps.",
+   "date": "2026-11-03T00:10:49+01:00"
+  },
+  {
+   "id": "TECH-0006",
+   "type": "techstack",
+   "title": "nginx base image",
+   "state": "accepted",
+   "page": "docs/techstack/0006-nginx-base-image.html",
+   "intent": "Approved nginx base image for the test apps.",
+   "date": "2026-11-03T00:10:56+01:00"
+  },
+  {
+   "id": "TECH-0007",
+   "type": "techstack",
+   "title": "marked",
+   "state": "accepted",
+   "page": "docs/techstack/0007-marked.html",
+   "intent": "Approved Markdown renderer for the idc365-decisions documentation site.",
+   "date": "2026-11-03T06:43:11+01:00"
+  }
+ ]
+}
