@@ -1,35 +1,32 @@
 /**
- * The Claude Code SessionStart hook entry in `<project>/.claude/settings.json`
- * (spec 9.1). Pure functions over the parsed settings; the command does I/O.
- *
- * Settings shape: `hooks.SessionStart` is an array of matcher groups
- * `{ matcher?, hooks: [handler, …] }`. The entry has no matcher, so it runs on
- * startup, resume, clear and compact. It is exec form (`command` + `args`,
- * no shell) and is recognised by command and args, so other hooks are kept.
+ * Claude Code project settings (`<project>/.claude/settings.json`) for the
+ * plugin: the marketplace in `extraKnownMarketplaces` and the plugin in
+ * `enabledPlugins`, so Claude Code offers and loads the plugin once the
+ * folder is trusted. Pure functions over the parsed settings; `setup` does
+ * the I/O. The SessionStart hook itself ships in the plugin (`hooks/hooks.json`);
+ * the per-project hook entry of phase 9 is removed when found.
  */
 
-export const HOOK_COMMAND = "idc365-decisions";
-export const HOOK_ARGS = ["hook", "session-start"];
-export const HOOK_TIMEOUT = 15;
+/** Marketplace name (in marketplace.json) and plugin entry name. */
+export const MARKETPLACE = "idc365-decisions";
+export const PLUGIN = "idc365-decisions";
+export const PLUGIN_ID = `${PLUGIN}@${MARKETPLACE}`;
+/** The branch of the documentation repository the workflow builds the marketplace on. */
+export const PLUGIN_REF = "meta/plugin";
 
-export interface HookHandler {
-  type: "command";
-  command: string;
-  args: string[];
-  timeout: number;
-}
-
-export const HOOK_HANDLER: HookHandler = { type: "command", command: HOOK_COMMAND, args: HOOK_ARGS, timeout: HOOK_TIMEOUT };
+/** The phase 9 project hook (exec form), now replaced by the plugin's own hook. */
+export const OLD_HOOK_COMMAND = "idc365-decisions";
+export const OLD_HOOK_ARGS = ["hook", "session-start"];
 
 type Json = Record<string, unknown>;
 
 const isObject = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** True for our handler: exec form with our command and args, or the same as one shell string. */
+/** True for the phase 9 handler: exec form with its command and args, or the same as one shell string. */
 export function isOurHandler(h: unknown): boolean {
   if (!isObject(h) || h.type !== "command") return false;
-  if (h.command === HOOK_COMMAND && Array.isArray(h.args) && h.args.length === HOOK_ARGS.length && h.args.every((a, i) => a === HOOK_ARGS[i])) return true;
-  return h.args === undefined && typeof h.command === "string" && h.command.trim().split(/\s+/).join(" ") === [HOOK_COMMAND, ...HOOK_ARGS].join(" ");
+  if (h.command === OLD_HOOK_COMMAND && Array.isArray(h.args) && h.args.length === OLD_HOOK_ARGS.length && h.args.every((a, i) => a === OLD_HOOK_ARGS[i])) return true;
+  return h.args === undefined && typeof h.command === "string" && h.command.trim().split(/\s+/).join(" ") === [OLD_HOOK_COMMAND, ...OLD_HOOK_ARGS].join(" ");
 }
 
 export type SettingsError = { error: string };
@@ -43,37 +40,7 @@ function groups(settings: Json): unknown[] | SettingsError {
   return ss;
 }
 
-/**
- * Adds our handler, or rewrites it in place when present (one copy, in a
- * group without a matcher). Everything else is kept as it is.
- */
-export function mergeHook(settings: Json): { settings: Json; changed: boolean } | SettingsError {
-  const list = groups(settings);
-  if ("error" in list) return list;
-  let placed = false;
-  const out: unknown[] = [];
-  for (const g of list) {
-    if (!isObject(g) || !Array.isArray(g.hooks) || !g.hooks.some(isOurHandler)) {
-      out.push(g);
-      continue;
-    }
-    const others = g.hooks.filter((h) => !isOurHandler(h));
-    if (!placed && (g.matcher === undefined || g.matcher === "" || g.matcher === "*")) {
-      const { matcher: _m, ...rest } = g;
-      const i = g.hooks.findIndex(isOurHandler);
-      const hooks = [...others];
-      hooks.splice(i, 0, { ...HOOK_HANDLER });
-      out.push({ ...rest, hooks });
-      placed = true;
-    } else if (others.length) out.push({ ...g, hooks: others });
-  }
-  if (!placed) out.push({ hooks: [{ ...HOOK_HANDLER }] });
-  const hooks = isObject(settings.hooks) ? settings.hooks : {};
-  const next = { ...settings, hooks: { ...hooks, SessionStart: out } };
-  return { settings: next, changed: JSON.stringify(next) !== JSON.stringify(settings) };
-}
-
-/** Removes only our handler; drops groups, `SessionStart` and `hooks` that become empty because of it. */
+/** Removes only the phase 9 hook; drops groups, `SessionStart` and `hooks` that become empty because of it. */
 export function removeHook(settings: Json): { settings: Json; changed: boolean } | SettingsError {
   const list = groups(settings);
   if ("error" in list) return list;
@@ -90,4 +57,33 @@ export function removeHook(settings: Json): { settings: Json; changed: boolean }
   const hooks = out.length ? { ...otherEvents, SessionStart: out } : otherEvents;
   const { hooks: _h, ...rest } = settings;
   return { settings: Object.keys(hooks).length ? { ...rest, hooks } : rest, changed: true };
+}
+
+/** The marketplace source for a documentation repository (org/repo). */
+export function marketplaceSource(repository: string): Json {
+  return { source: "github", repo: repository, ref: PLUGIN_REF };
+}
+
+/**
+ * Adds (or corrects) the marketplace entry and enables the plugin; keeps
+ * every other key, marketplace and plugin. An explicit
+ * `"idc365-decisions@idc365-decisions": false` (the user switched it off) is
+ * kept. Also removes the phase 9 project hook, which the plugin replaces.
+ */
+export function mergeProjectSettings(settings: Json, repository: string): { settings: Json; changed: boolean; removedOldHook: boolean } | SettingsError {
+  if (settings.extraKnownMarketplaces !== undefined && !isObject(settings.extraKnownMarketplaces)) return { error: "`extraKnownMarketplaces` is not an object" };
+  if (settings.enabledPlugins !== undefined && !isObject(settings.enabledPlugins)) return { error: "`enabledPlugins` is not an object" };
+  const without = removeHook(settings);
+  if ("error" in without) return without;
+  const base = without.settings;
+  const markets = (base.extraKnownMarketplaces ?? {}) as Json;
+  const current = isObject(markets[MARKETPLACE]) ? (markets[MARKETPLACE] as Json) : {};
+  const entry = { ...current, source: marketplaceSource(repository), autoUpdate: current.autoUpdate ?? true };
+  const plugins = (base.enabledPlugins ?? {}) as Json;
+  const next: Json = {
+    ...base,
+    extraKnownMarketplaces: { ...markets, [MARKETPLACE]: entry },
+    enabledPlugins: { ...plugins, [PLUGIN_ID]: plugins[PLUGIN_ID] === false ? false : true },
+  };
+  return { settings: next, changed: JSON.stringify(next) !== JSON.stringify(settings), removedOldHook: without.changed };
 }

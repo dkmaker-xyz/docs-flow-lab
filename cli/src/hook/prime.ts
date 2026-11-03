@@ -8,7 +8,7 @@ import { indexFileName } from "../index/model.js";
 import { fetchIndex } from "../index/read.js";
 import { currentRelease, listRels, type Resolution } from "../release/release.js";
 import { loadSetup, TOKEN_ENV, type SetupProblem } from "../setup/setup.js";
-import { checkForUpdate, updateNotice, type Viewer } from "./update.js";
+import { checkForUpdate, installedPluginVersion, marketplaceViewer, updateNotice, type Viewer } from "./update.js";
 
 /** Claude Code caps additionalContext at 10,000 characters. */
 export const CLAUDE_CONTEXT_CAP = 10_000;
@@ -44,7 +44,10 @@ export interface PrimeOptions {
   env?: NodeJS.ProcessEnv;
   now?: Date;
   cacheDir: string;
+  /** CLI version; the plugin version comes from \`pluginRoot\`. */
   version: string;
+  /** \`CLAUDE_PLUGIN_ROOT\` when the hook runs from the plugin; the update check runs only then. */
+  pluginRoot?: string;
   fetch?: typeof fetch;
   view?: Viewer;
   /** Per request; the whole online part also stops after `deadlineMs`. */
@@ -203,9 +206,18 @@ export async function prime(o: PrimeOptions): Promise<Primed> {
   const now = o.now ?? new Date();
   const code = localCode(o.cwd);
   const warnings: string[] = [];
-  const update = checkForUpdate(o.version, { dir: o.cacheDir, env, now, view: o.view, timeoutMs: 4000 }).then(updateNotice, () => undefined);
-
   const setup = loadSetup(o.cwd, env);
+  const installed = installedPluginVersion(o.pluginRoot);
+  const update: Promise<string | undefined> =
+    installed && setup.ok
+      ? checkForUpdate(installed, {
+          dir: o.cacheDir,
+          key: setup.setup.repository,
+          now,
+          view: o.view ?? marketplaceViewer(new GitHubClient({ repository: setup.setup.repository, token: setup.setup.token, fetch: timeoutFetch(o.fetch ?? fetch, 4000) })),
+        }).then(updateNotice, () => undefined)
+      : Promise.resolve(undefined);
+
   const linkProblem = !setup.ok ? setup.problems.find((p) => p.kind !== "token-missing") : undefined;
   if (!setup.ok && linkProblem) {
     const notice = await update;
@@ -213,7 +225,7 @@ export async function prime(o: PrimeOptions): Promise<Primed> {
       "# IDC365 decision system",
       "",
       `The idc365-decisions hook ran, but this repository is not linked to a documentation repository: ${linkProblem.message}`,
-      `Fix: ${linkProblem.nextAction} Then run \`idc365-decisions hook install\`. Until then no decisions, procedures or tech stack are available here; tell the user.`,
+      `Fix: ${linkProblem.nextAction} Until then no decisions, procedures or tech stack are available here; tell the user.`,
       ...(notice ? ["", `> ${notice}`] : []),
       "",
     ].join("\n");

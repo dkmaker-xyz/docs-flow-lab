@@ -46,7 +46,7 @@ export function loadSetup(cwd: string, env: NodeJS.ProcessEnv = process.env): Se
     problems.push({
       kind: "link-missing",
       message: `No \`${LINK_FILE}\` found between \`${resolve(cwd)}\` and ${gitRoot ? `the git root \`${gitRoot}\`` : "the filesystem root"}.`,
-      nextAction: `Create \`${LINK_FILE}\` in the code repository root with \`{"repository": "<org>/<documentation-repo>"}\` and commit it.`,
+      nextAction: `Run \`idc365-decisions setup --repository <org>/<documentation-repo>\` in the code repository root (it writes \`${LINK_FILE}\` and the Claude Code project settings), then commit both.`,
     });
   } else {
     try {
@@ -66,7 +66,7 @@ export function loadSetup(cwd: string, env: NodeJS.ProcessEnv = process.env): Se
     problems.push({
       kind: "token-missing",
       message: `The environment variable \`${TOKEN_ENV}\` is not set.`,
-      nextAction: `Create a fine-grained personal access token as described in the CLI README, section "Documentation token", and export it as \`${TOKEN_ENV}\` in your shell profile. Then restart the session.`,
+      nextAction: `Create a fine-grained personal access token for the documentation repository and store it as the user environment variable \`${TOKEN_ENV}\` (README, section "Documentation token"); \`idc365-decisions setup\` prints the steps with a pre-filled link. Then restart the terminal and Claude Code.`,
     });
   }
   if (problems.length || !repository || !token) return { ok: false, problems, linkFile };
