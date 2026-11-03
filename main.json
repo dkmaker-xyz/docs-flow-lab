@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "14e8d97f027e74aacef7be048ca1e0e96e50b169",
-  "generatedAt": "2026-11-02T23:59:37.942Z",
+  "sourceSha": "b3259460cc5719040adadc2484c284c46c3a4699",
+  "generatedAt": "2026-11-03T00:00:49.469Z",
   "base": null,
   "documents": [
     {
@@ -267,6 +267,33 @@
       "commit": {
         "sha": "d8c12a0a531e3a4dbabc057073ba57c08ee602c5",
         "date": "2026-11-03T00:35:20+01:00"
+      },
+      "mergedBy": "dkmaker"
+    },
+    {
+      "id": "CODE:dkmaker-xyz/docs-flow-lab-app",
+      "type": "shadow",
+      "path": "code/dkmaker-xyz/docs-flow-lab-app/_.md",
+      "slug": null,
+      "title": "Repository structure",
+      "description": "Overview of the applications in docs-flow-lab-app.",
+      "intent": "Where each application lives and what applies before changing it.",
+      "when": "At the start of any work in this repository.",
+      "state": "accepted",
+      "category": null,
+      "featured": true,
+      "placeholder": false,
+      "pending": false,
+      "relations": {
+        "outgoing": [],
+        "incoming": []
+      },
+      "releases": [
+        "main"
+      ],
+      "commit": {
+        "sha": "eadf11d03f7722b9626a12fe23c6fcf915248c4f",
+        "date": "2026-11-03T00:57:31+01:00"
       },
       "mergedBy": "dkmaker"
     },
