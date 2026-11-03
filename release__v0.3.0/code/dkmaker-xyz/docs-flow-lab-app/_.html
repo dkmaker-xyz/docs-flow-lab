@@ -1,0 +1,13 @@
+<article class="doc" data-id="CODE:dkmaker-xyz/docs-flow-lab-app">
+<p class="meta"><span class="badge s-accepted">accepted</span> · <span class="id">CODE:dkmaker-xyz/docs-flow-lab-app</span> · Code documentation · updated 2026-11-03</p>
+<h1>Repository structure</h1>
+<p class="intent">Where each application lives and what applies before changing it.</p>
+<div class="body"><p>This code repository has two applications under <code>apps/</code>:</p>
+<ul>
+<li><code>apps/web</code>: the web front end, a Node.js package (<code>package.json</code>) built into a container image (<code>Dockerfile</code>).</li>
+<li><code>apps/integration2</code>: an integration service, a Maven project (<code>pom.xml</code>).</li>
+</ul>
+<p>CI lives in <code>.github/workflows/</code>; <code>tech-check.yml</code> runs <code>idc365-decisions tech check</code> on every pull request, so every dependency must be on the approved tech stack.</p>
+<p>Before changing an application, read its code documentation (<code>idc365-decisions code show apps/web/_</code>) and the decisions it links to.</p>
+</div>
+</article>
