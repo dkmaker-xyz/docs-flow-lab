@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { encodePath } from "../github/index.js";
-import { MARKETPLACE, PLUGIN_REF } from "./settings.js";
+import { MARKETPLACE, PLUGIN_ID, PLUGIN_REF } from "./settings.js";
 /**
  * Daily, cached check for a newer plugin version (spec 8.1, phase 10): the
  * installed plugin's `plugin.json` against the one on the marketplace branch
@@ -89,5 +89,5 @@ export async function checkForUpdate(current, o) {
 export function updateNotice(s) {
     if (!s.newer)
         return undefined;
-    return `A newer idc365-decisions plugin is available: ${s.latest} (installed ${s.current}). Ask the user for permission before updating; do not update on your own. The user updates in Claude Code with \`/plugin marketplace update ${MARKETPLACE}\`, then \`/reload-plugins\`.`;
+    return `A newer idc365-decisions plugin is available: ${s.latest} (installed ${s.current}). Ask the user for permission before updating; do not update on your own. The user updates in Claude Code with \`/plugin marketplace update ${MARKETPLACE}\`, then \`/reload-plugins\` (or in a terminal: \`claude plugin update ${PLUGIN_ID}\`, then restart).`;
 }

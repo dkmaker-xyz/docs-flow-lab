@@ -152,7 +152,7 @@ export async function runSetup(cwd, o = {}) {
         ? needToken && missing.length === 1
             ? `${commit}Give the user the token steps above, wait until they have restarted Claude Code, then run \`${CLI} setup\` again.`
             : `${commit}Fix each item marked Missing (${missing.map((m) => m.item).join(", ")}), then run \`${CLI} setup\` again.`
-        : `${commit}None. Continue with your task.`;
+        : written.length ? `${commit}Then continue with your task.` : "None. Continue with your task.";
     out({ ok: missing.length === 0, repository, written, tokenOk, checks, ...(needToken ? { tokenSteps: tokenSteps(repository) } : {}) }, md(missing.length ? "Setup incomplete" : "Setup complete", lines, next));
     return missing.length ? 1 : 0;
 }

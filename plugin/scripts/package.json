@@ -1,6 +1,6 @@
 {
   "name": "@idconnectdk/idc365-decisions",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Agent-first CLI for the idc365-decisions documentation repository.",
   "license": "UNLICENSED",
   "type": "module",

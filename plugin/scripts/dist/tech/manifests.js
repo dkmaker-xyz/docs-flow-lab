@@ -11,7 +11,7 @@ export function findManifests(root) {
                     walk(join(dir, e.name));
             }
             else if (e.name === "package.json" || e.name === "pom.xml" || /^Dockerfile/.test(e.name)) {
-                out.push(relative(root, join(dir, e.name)));
+                out.push(posix(relative(root, join(dir, e.name))));
             }
         }
     };
@@ -23,6 +23,8 @@ function lowestNpmVersion(spec) {
     const m = /^[\^~=v\s]*([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/.exec(spec.trim());
     return m?.[1];
 }
+/** A relative path with forward slashes on every platform (Windows `relative` gives backslashes). */
+const posix = (p) => p.split("\\").join("/");
 /** Versions from the nearest package-lock.json (v2/v3 format) at or above the manifest. */
 function lockVersions(root, file) {
     let dir = dirname(join(root, file));
@@ -31,7 +33,7 @@ function lockVersions(root, file) {
         if (existsSync(lock)) {
             try {
                 const data = JSON.parse(readFileSync(lock, "utf8"));
-                const rel = relative(dir, dirname(join(root, file)));
+                const rel = posix(relative(dir, dirname(join(root, file))));
                 const out = new Map();
                 for (const [k, v] of Object.entries(data.packages ?? {})) {
                     if (!v.version)
