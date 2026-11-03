@@ -3,8 +3,8 @@
  "ref": "main",
  "kind": "branch",
  "repository": "dkmaker-xyz/docs-flow-lab",
- "sourceSha": "bafedc079d1d0f19da352410f81d2346a32430ce",
- "generatedAt": "2026-11-03T06:16:09.000Z",
+ "sourceSha": "4fda0b58ee157efd80b104c4a97e5f0001693a6e",
+ "generatedAt": "2026-11-03T07:48:09.000Z",
  "documents": [
   {
    "id": "ADR-0052",
@@ -100,7 +100,7 @@
    "id": "CODE:dkmaker-xyz/docs-flow-lab-app/search.txt",
    "type": "shadow",
    "title": "dkmaker-xyz/docs-flow-lab-app/search.txt",
-   "state": "",
+   "state": "placeholder",
    "page": "code/dkmaker-xyz/docs-flow-lab-app/search.txt.html",
    "intent": "",
    "date": "2026-11-02T22:36:27Z"
