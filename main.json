@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "branch": "main",
-  "sourceSha": "0e017decff48af2c3e2022f5fa555b605cdd7098",
-  "generatedAt": "2026-11-03T05:50:31.489Z",
+  "sourceSha": "1dde5412dde106ed036a1e4350825f22221764b2",
+  "generatedAt": "2026-11-03T06:06:26.837Z",
   "base": null,
   "documents": [
     {
@@ -33,7 +33,8 @@
         "main",
         "release/v0.3.0",
         "v0.1.0",
-        "v0.2.0"
+        "v0.2.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "0cb3e4e9001664fa6c81d1dfc7d51f5285d56766",
@@ -80,7 +81,8 @@
         "main",
         "release/v0.3.0",
         "v0.1.0",
-        "v0.2.0"
+        "v0.2.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "2341097a65c8d1986151e6758acc406733e7afcf",
@@ -121,7 +123,8 @@
       "releases": [
         "main",
         "release/v0.3.0",
-        "v0.2.0"
+        "v0.2.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "3ea42dfb0d16ff6ac1adaddd8aaa2e9394fd72c4",
@@ -162,7 +165,8 @@
       "releases": [
         "main",
         "release/v0.3.0",
-        "v0.2.0"
+        "v0.2.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "346c24026669cd35ad215a7c1147e7168a143d21",
@@ -196,7 +200,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "02f4d9949035d9a10c9278d18b132cb74cee4aad",
@@ -235,7 +240,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "36f577a75dffaa97a23a769018769dd3d8889451",
@@ -269,7 +275,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "d8c12a0a531e3a4dbabc057073ba57c08ee602c5",
@@ -297,7 +304,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "eadf11d03f7722b9626a12fe23c6fcf915248c4f",
@@ -338,7 +346,8 @@
       "releases": [
         "main",
         "release/v0.3.0",
-        "v0.2.0"
+        "v0.2.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "d326294a4aeef62583a1e39381b05880b4555fc0",
@@ -367,7 +376,8 @@
       "releases": [
         "main",
         "release/v0.3.0",
-        "v0.2.0"
+        "v0.2.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "782fd586f6f8316e3f40ea39ae94472da3c0baf7",
@@ -395,7 +405,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "0e017decff48af2c3e2022f5fa555b605cdd7098",
@@ -423,7 +434,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "7dced42c9f9e5c034097991123521279fdf77497",
@@ -451,7 +463,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "4393bcab93101e7d671159e5bea3808a8de19b9b",
@@ -479,7 +492,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "45068038df6bf6df8cb5753dfb9edcafbaf94b2d",
@@ -507,7 +521,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "b61f9bd0327170b247ce18535eac2a7d04b0ce07",
@@ -535,7 +550,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "51b7ecb6decf8c69e27085135799c884e7028fd7",
@@ -563,7 +579,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "8d1dbc311ecd9c194eeac1bee22beac94a6bab4b",
@@ -591,7 +608,8 @@
       },
       "releases": [
         "main",
-        "release/v0.3.0"
+        "release/v0.3.0",
+        "v0.2.1"
       ],
       "commit": {
         "sha": "a9e666ac570961c3da9368b6b4eb036e91160c49",
