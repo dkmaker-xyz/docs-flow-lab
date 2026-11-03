@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { posix, resolve, join } from "node:path";
 import { loadConfig } from "./config.js";
 import { findMacros, isExternalUrl, scanLinks, splitFrontmatter } from "./markdown.js";
-import { PRIMING_FIXED_TEXT, charCount, primingFeatured } from "./priming.js";
+import { INSTRUCTIONS_FILE, SAMPLE_VARS, charCount, composeInstructions, placeholderProblems, primingFeatured } from "./priming.js";
 import { validateFrontmatter } from "./schemas.js";
 import type { Config, DocType, Finding, Relation, RuleId, ValidationResult } from "./types.js";
 import { isRecord, parseYaml } from "./yaml.js";
@@ -92,10 +92,10 @@ export function validateTree(rootPath: string): ValidationResult {
     checkReleaseRepos(config, doc, out);
   }
   checkAttachments(root, config, docs, binaries, out);
-  checkPriming(config, docs, out);
+  const primingNote = checkPriming(root, config, docs, out);
 
   const findings = out.findings.sort((a, b) => a.file.localeCompare(b.file) || a.rule.localeCompare(b.rule));
-  return { root, documents: docs.length, findings, notes: attachmentNotes(docs, registry) };
+  return { root, documents: docs.length, findings, notes: [...(primingNote ? [primingNote] : []), ...attachmentNotes(docs, registry)] };
 }
 
 function walkDocs(root: string, out: Collector, docs: Doc[], binaries: Binary[]): void {
@@ -388,20 +388,32 @@ function checkAttachments(root: string, config: Config, docs: Doc[], binaries: B
   }
 }
 
-function checkPriming(config: Config, docs: Doc[], out: Collector): void {
+/**
+ * config/instructions.md (phase 13): it must exist and hold each placeholder
+ * once, and the priming it gives (with realistic release text, one warning
+ * and every featured document) must stay within priming_budget. Returns a
+ * note with the character count for the PR check.
+ */
+function checkPriming(root: string, config: Config, docs: Doc[], out: Collector): { file: string; message: string } | undefined {
+  const path = join(root, INSTRUCTIONS_FILE);
+  if (!existsSync(path)) {
+    out.add(INSTRUCTIONS_FILE, "instructions.missing", "the session instructions file is missing", "Add config/instructions.md with the instruction text and the placeholders {{release}}, {{commands}} and {{featured}}.");
+    return undefined;
+  }
+  const template = readFileSync(path, "utf8");
+  const problems = placeholderProblems(template);
+  for (const p of problems) out.add(INSTRUCTIONS_FILE, "instructions.placeholder", p, "Keep {{release}}, {{commands}} and {{featured}} exactly once each; the hook fills them in.");
+  if (problems.length) return undefined;
   const featured = docs.filter((d) => d.frontmatter?.featured === true && d.body !== undefined);
-  const sizes = featured.map((d) => ({ file: d.file, chars: charCount(primingFeatured(d.key ?? d.file, String(d.frontmatter?.title ?? ""), d.body!)) }));
-  const fixed = charCount(PRIMING_FIXED_TEXT);
-  const total = fixed + sizes.reduce((n, s) => n + s.chars, 0);
-  if (total <= config.priming_budget) return;
-  const largest = [...sizes].sort((a, b) => b.chars - a.chars)[0];
-  const breakdown = sizes.map((s) => `${s.file} ${s.chars}`).join(", ");
-  out.add(
-    largest?.file ?? "config/priming.yaml",
-    "priming.budget",
-    `priming is ${total} characters (fixed text ${fixed}; featured: ${breakdown || "none"}); the budget is ${config.priming_budget}`,
-    "Shorten featured bodies or set `featured: false` on some documents.",
-  );
+  const blocks = featured.map((d) => ({ file: d.file, text: primingFeatured(d.key ?? d.file, String(d.frontmatter?.title ?? ""), d.body!) }));
+  const base = charCount(composeInstructions(template, SAMPLE_VARS, ""));
+  const total = charCount(composeInstructions(template, SAMPLE_VARS, blocks.map((b) => b.text).join("\n")));
+  const breakdown = blocks.map((b) => `${b.file} ${charCount(b.text)}`).join(", ");
+  const summary = `priming is ${total} characters of ${config.priming_budget} (instructions with sample release text ${base}; featured: ${breakdown || "none"})`;
+  if (total <= config.priming_budget) return { file: INSTRUCTIONS_FILE, message: summary };
+  const largest = [...blocks].sort((a, b) => charCount(b.text) - charCount(a.text))[0];
+  out.add(largest?.file ?? INSTRUCTIONS_FILE, "priming.budget", summary.replace(" of ", ", over the budget of "), "Shorten config/instructions.md or featured bodies, or set `featured: false` on some documents.");
+  return undefined;
 }
 
 

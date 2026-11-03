@@ -225,16 +225,36 @@ export function titleOf(doc: IndexDocument): string {
   return doc.id;
 }
 
+/** How an ID is shown: `CODE <repo>/<path>` for code documentation (the org is the same everywhere), else the ID. */
+export function displayId(id: string): string {
+  const m = /^CODE:[A-Za-z0-9-]+\/(.+)$/.exec(id);
+  return m ? `CODE ${m[1]}` : id;
+}
+
+/** A title worth showing next to an ID: not just the ID or the code path again. */
+export function extraTitle(id: string, title: string): string {
+  if (!title || title === id || `CODE:${title}` === id || id.endsWith(`/${title}`) || displayId(id) === `CODE ${title}`) return "";
+  return title;
+}
+
+/** Status shown for a document: its state, "placeholder" for a placeholder without one. */
+export function stateOf(doc: IndexDocument): string {
+  return doc.state ?? (doc.placeholder ? "placeholder" : "");
+}
+
 /** A link to a relation target: its page when it is in the tree, else a real external link. */
 function targetLink(target: string, fromPage: string, byId: Map<string, IndexDocument>, fmLink: string | undefined): string {
   const doc = byId.get(target);
-  if (doc) return `<a href="${escapeHtml(posix.relative(posix.dirname(fromPage), pagePath(doc.path)))}">${escapeHtml(target)}</a> ${escapeHtml(titleOf(doc))}`;
+  if (doc) {
+    const t = extraTitle(target, titleOf(doc));
+    return `<a href="${escapeHtml(posix.relative(posix.dirname(fromPage), pagePath(doc.path)))}">${escapeHtml(displayId(target))}</a>${t ? ` ${escapeHtml(t)}` : ""}`;
+  }
   if (fmLink && /^https?:\/\//i.test(fmLink)) return `<a href="${escapeHtml(fmLink)}" rel="noreferrer noopener">${escapeHtml(target)}</a>`;
   const code = /^CODE:([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)\/?(.*)$/.exec(target);
   if (code) {
     const path = code[3] ?? "";
     const url = `https://github.com/${code[1]}/${code[2]}${path ? `/tree/HEAD/${path.replace(/\/_$/, "")}` : ""}`;
-    return `<a href="${escapeHtml(url)}" rel="noreferrer noopener">${escapeHtml(target)}</a>`;
+    return `<a href="${escapeHtml(url)}" rel="noreferrer noopener">${escapeHtml(displayId(target))}</a>`;
   }
   return escapeHtml(target);
 }
@@ -244,10 +264,10 @@ export function renderDocument(input: DocInput, byId: Map<string, IndexDocument>
   const { doc, fm, body } = input;
   const page = pagePath(doc.path);
   const rel = (d: IndexDocument) => posix.relative(posix.dirname(page), pagePath(d.path));
-  const state = doc.state ?? "unknown";
+  const state = stateOf(doc);
   const out: string[] = [];
   out.push(`<article class="doc" data-id="${escapeHtml(doc.id)}">`);
-  const meta = [`<span class="badge s-${escapeHtml(slugify(state))}">${escapeHtml(state)}</span>`, `<span class="id">${escapeHtml(doc.id)}</span>`, escapeHtml(SINGULAR[doc.type] ?? doc.type)];
+  const meta = [...(state ? [`<span class="badge s-${escapeHtml(slugify(state))}">${escapeHtml(state)}</span>`] : []), `<span class="id">${escapeHtml(displayId(doc.id))}</span>`, escapeHtml(SINGULAR[doc.type] ?? doc.type)];
   if (doc.category) meta.push(escapeHtml(doc.category));
   if (doc.commit?.date) meta.push(`updated ${escapeHtml(doc.commit.date.slice(0, 10))}`);
   out.push(`<p class="meta">${meta.join(" · ")}</p>`);
@@ -258,7 +278,8 @@ export function renderDocument(input: DocInput, byId: Map<string, IndexDocument>
   for (const r of doc.relations.incoming) {
     if (r.type !== "supersedes" && r.type !== "amends") continue;
     const src = byId.get(r.source!);
-    const link = src ? `<a href="${escapeHtml(rel(src))}">${escapeHtml(src.id)} ${escapeHtml(titleOf(src))}</a>` : escapeHtml(r.source!);
+    const t = src ? extraTitle(src.id, titleOf(src)) : "";
+    const link = src ? `<a href="${escapeHtml(rel(src))}">${escapeHtml(displayId(src.id))}${t ? ` ${escapeHtml(t)}` : ""}</a>` : escapeHtml(r.source!);
     banners.push(`<p>${r.type === "supersedes" ? "Superseded by" : "Amended by"} ${link}${r.why ? `: ${escapeHtml(r.why)}` : ""}</p>`);
   }
   if (banners.length) out.push(`<div class="banner${doc.relations.incoming.some((r) => r.type === "supersedes") ? " superseded" : ""}">${banners.join("")}</div>`);
@@ -288,12 +309,12 @@ export function renderDocument(input: DocInput, byId: Map<string, IndexDocument>
   if (outgoing.length || incoming.length) {
     out.push(`<section class="relations"><h2 id="relations">Relations</h2>`);
     if (outgoing.length) {
-      out.push(`<h3>This document</h3><ul>`);
+      out.push(`<h3>Outgoing</h3><ul>`);
       for (const r of outgoing) out.push(`<li><span class="rtype">${escapeHtml(r.type)}</span> ${targetLink(r.target!, page, byId, linkOf(r.target!))}${r.why ? `<span class="why">${escapeHtml(r.why)}</span>` : ""}</li>`);
       out.push(`</ul>`);
     }
     if (incoming.length) {
-      out.push(`<h3>Other documents</h3><ul>`);
+      out.push(`<h3>Incoming</h3><ul>`);
       for (const r of incoming) out.push(`<li>${targetLink(r.source!, page, byId, undefined)} <span class="rtype">${escapeHtml(INCOMING_LABEL[r.type] ?? `${r.type} this`)}</span>${r.why ? `<span class="why">${escapeHtml(r.why)}</span>` : ""}</li>`);
       out.push(`</ul>`);
     }
@@ -357,7 +378,7 @@ export async function buildSite(o: BuildSiteOptions): Promise<{ manifest: SiteMa
     const body = split?.body ?? text;
     const page = pagePath(doc.path);
     files.set(page, renderDocument({ doc, fm, body }, byId, { repository: o.repository, ref: o.ref }).html);
-    const entry = { id: doc.id, type: doc.type, title: titleOf(doc), state: doc.state ?? "", page };
+    const entry = { id: doc.id, type: doc.type, title: titleOf(doc), state: stateOf(doc), page };
     documents.push({ ...entry, intent: doc.intent ?? "", date: doc.commit?.date ?? null });
     search.push({ ...entry, text: plainText(body).slice(0, 20000) });
   }

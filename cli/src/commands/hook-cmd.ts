@@ -16,6 +16,7 @@ const HELP = [
   "most important commands and the featured documents.",
   "",
   `- \`${CLI} setup [--repository <org>/<repo>]\`: in a code repository: link file, the plugin in \`.claude/settings.json\`, token check.`,
+  `- \`${CLI} instructions\`: print the same instructions (from \`config/instructions.md\`) for the current code branch.`,
   `- \`${CLI} hook session-start\`: the hook itself (reads the SessionStart JSON on stdin, prints the priming JSON). Run it by hand to see the priming.`,
 ];
 
@@ -64,4 +65,15 @@ export function registerHookCommands(program: Command, pkgVersion: string): void
   });
   hook.helpInformation = () => md("Claude Code hook", HELP, `In a code repository, run \`${CLI} setup\`.`);
   hook.command("session-start").action(runSessionStart);
+
+  // The same instructions the hook gives a session, for the skill and for people (one source: config/instructions.md).
+  program
+    .command("instructions")
+    .description("print the session instructions for this code branch")
+    .action(async () => {
+      const p = await prime({ cwd: process.cwd(), cacheDir: cacheDir(), version, pluginRoot: process.env.CLAUDE_PLUGIN_ROOT || undefined });
+      process.stdout.write(
+        `${p.context.trimEnd()}\n\n## Next action\n\nFollow these instructions for the rest of the session. They come from \`config/instructions.md\` in the documentation repository${p.docsBranch ? ` (branch \`${p.docsBranch}\`)` : ""}; changes to them go through a pull request.\n`,
+      );
+    });
 }

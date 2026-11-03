@@ -25,7 +25,9 @@ export type RuleId =
   | "attachment.type"
   | "attachment.size"
   | "attachment.metadata"
-  | "priming.budget";
+  | "priming.budget"
+  | "instructions.missing"
+  | "instructions.placeholder";
 
 export interface Finding {
   /** Path relative to the tree root, with forward slashes. */

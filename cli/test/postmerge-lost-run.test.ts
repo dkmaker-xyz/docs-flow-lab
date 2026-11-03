@@ -116,6 +116,13 @@ describe("post-merge after a cancelled run (two merges, the first run lost)", ()
     assert.equal(await writeMarker(client, root, "main", base), "kept", "a re-run of an old run leaves a newer marker");
     assert.equal((await readMarker(client, "main")).marker?.sha, merge2);
   });
+  test("the marker write retries when another commit to meta/index (an index build) wins the race", async () => {
+    const { root, merge2, remote } = twoMerges();
+    let conflicts = 2;
+    remote.mock.on("PUT", /\/contents\/post-merge\/.+$/, () => (conflicts-- > 0 ? { status: 409, body: { message: "is at 1234 but expected 5678" } } : { status: 201, body: {} }));
+    assert.equal(await writeMarker(remote.client(), root, "main", merge2), "written");
+    assert.equal(conflicts, -1, "two conflicts, then the write");
+  });
   test("without a marker (first run) the push event's before is used; a foreign marker falls back to it", () => {
     const { root, merge1, merge2 } = twoMerges();
     assert.deepEqual(chooseBase(root, undefined, merge1, merge2), { before: merge1, from: "event" });

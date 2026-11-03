@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import { runSetup } from "../src/commands/setup.js";
-import { charCount, PRIMING_FIXED_TEXT } from "../src/engine/index.js";
+import { charCount, composeInstructions, FALLBACK_INSTRUCTIONS, placeholderProblems, SAMPLE_VARS } from "../src/engine/index.js";
 import { packageRoot } from "../src/engine/package-root.js";
 import { composePriming, hookOutput, prime } from "../src/hook/prime.js";
 import { isOurHandler, mergeProjectSettings, PLUGIN_ID, removeHook } from "../src/hook/settings.js";
@@ -94,9 +94,11 @@ function codeRepo(link = true): string {
 const REL = "---\nid: REL-0001\ntitle: Release v2.0.0\ndescription: d\nintent: i\nwhen: w\nstate: accepted\nversion: v2.0.0\nphase: development\ndocs_branch: release/v2.0.0\ncode:\n  - repo: acme/app\n    branch: release/2.0\n---\n";
 const doc = (id: string, body: string) => `---\nid: ${id}\ntitle: Overview ${id}\ndescription: d\nintent: i\nwhen: w\nstate: accepted\ncategory: architecture\nfeatured: true\n---\n${body}\n`;
 
-function docsRepo(featured: Record<string, string> = { "ADR-0001": "The repository has two apps: web and api." }, budget = 8000) {
+const INSTR = readFileSync(join(packageRoot(), "test", "fixtures", "valid", "config", "instructions.md"), "utf8");
+
+function docsRepo(featured: Record<string, string> = { "ADR-0001": "The repository has two apps: web and api." }, budget = 8000, instructions: string | null = INSTR) {
   const r = new FakeRepo();
-  r.seed("main", { "README.md": "x", "docs/release/0001-release-v2-0-0.md": REL, "config/priming.yaml": "priming_budget: 8000\n" });
+  r.seed("main", { "README.md": "x", "docs/release/0001-release-v2-0-0.md": REL, "config/priming.yaml": "priming_budget: 8000\n", ...(instructions ? { "config/instructions.md": instructions } : {}) });
   const files: Record<string, string> = { "config/priming.yaml": `priming_budget: ${budget}\n` };
   for (const [id, body] of Object.entries(featured)) files[`docs/adr/${id.slice(4)}-overview.md`] = doc(id, body);
   const head = r.seed("release/v2.0.0", files, "main");
@@ -120,7 +122,7 @@ describe("priming (hook session-start)", () => {
     const p = await prime({ cwd, env: env("t"), cacheDir: cache, version: "0.1.0", fetch: r.mock.fetch, view: noUpdate });
     assert.equal(p.mode, "online");
     assert.equal(p.docsBranch, "release/v2.0.0");
-    assert.match(p.context, /documentation repository `acme\/docs`/);
+    assert.match(p.context, /Documentation repository: `acme\/docs`/);
     assert.match(p.context, /Release: v2\.0\.0 \(REL-0001, phase development\), the branch is mapped/);
     assert.match(p.context, /Documentation branch: `release\/v2\.0\.0`: read with `--ref release\/v2\.0\.0`/);
     assert.match(p.context, /idc365-decisions tech check/);
@@ -155,14 +157,14 @@ describe("priming (hook session-start)", () => {
     assert.equal(reads(), n);
   });
   test("featured documents over the budget are left out by name; the result stays within it", async () => {
-    const r = docsRepo({ "ADR-0001": "a".repeat(500), "ADR-0002": "b".repeat(3000), "ADR-0003": "c".repeat(200) }, 2500);
+    const r = docsRepo({ "ADR-0001": "a".repeat(500), "ADR-0002": "b".repeat(3000), "ADR-0003": "c".repeat(200) }, 5000);
     const p = await prime({ cwd: codeRepo(), env: env("t"), cacheDir: uniq("cache"), version: "0.1.0", fetch: r.mock.fetch, view: noUpdate });
     assert.match(p.context, /## Featured: ADR-0001/);
     assert.match(p.context, /## Featured: ADR-0003/);
     assert.doesNotMatch(p.context, /## Featured: ADR-0002/);
-    assert.match(p.context, /left out to stay within the budget of 2500 characters: ADR-0002/);
-    assert.ok(charCount(p.context) <= 2500 + 200);
-    assert.ok(charCount(composePriming("a/b", [], [], [], 20000)) <= 10000);
+    assert.match(p.context, /left out to stay within the budget of 5000 characters: ADR-0002/);
+    assert.ok(charCount(p.context) <= 5000 + 200);
+    assert.ok(charCount(composePriming(INSTR + "x".repeat(20000), "a/b", [], [], [], 20000)) <= 10000);
   });
   test("offline: primes from the cache with a stale warning and the reason", async () => {
     const r = docsRepo();
@@ -205,10 +207,11 @@ describe("priming (hook session-start)", () => {
     assert.equal(p.mode, "none");
     assert.match(p.context, /not linked to a documentation repository/);
   });
-  test("the fixed text the validator counts covers a realistic head", async () => {
+  test("the sample the validator counts covers a realistic session", async () => {
     const r = docsRepo({});
     const p = await prime({ cwd: codeRepo(), env: env("t"), cacheDir: uniq("cache"), version: "0.1.0", fetch: r.mock.fetch, view: noUpdate });
-    assert.ok(charCount(p.context) <= charCount(PRIMING_FIXED_TEXT), `${charCount(p.context)} > ${charCount(PRIMING_FIXED_TEXT)}`);
+    const sample = charCount(composeInstructions(INSTR, SAMPLE_VARS, ""));
+    assert.ok(charCount(p.context) <= sample, `${charCount(p.context)} > ${sample}`);
   });
   test("an update notice reaches the priming", async () => {
     const r = docsRepo();
@@ -221,6 +224,46 @@ describe("priming (hook session-start)", () => {
     const outside = await prime({ cwd: codeRepo(), env: env("t"), cacheDir: uniq("cache"), version: "0.1.0", fetch: r.mock.fetch, view: async () => ((called = true), { ok: true, version: "9.9.9" }) });
     assert.doesNotMatch(outside.context, /newer/);
     assert.equal(called, false, "no check outside the plugin");
+  });
+});
+
+describe("instructions from config/instructions.md", () => {
+  test("placeholders: release, commands and featured filled in at their places; warnings first; text kept as written", () => {
+    const t = "# Rules\n\nCost: $& $1 {{x}}\n\n{{release}}\nMiddle.\n{{commands}}\n{{featured}}\n";
+    const out = composeInstructions(t, { docs: "acme/docs", release: ["- Release: v1"], warnings: ["Stale."] }, "## Featured: ADR-1 A\n\nBody\n");
+    assert.match(out, /^> Stale\.\n\n# Rules\n\nCost: \$& \$1 \{\{x\}\}\n\n## This code branch\n\n- Documentation repository: `acme\/docs`\n- Release: v1\n\nMiddle\.\n## Most important commands\n\n- `idc365-decisions adr/);
+    assert.match(out, /\n## Featured: ADR-1 A\n\nBody\n$/);
+    assert.deepEqual(placeholderProblems(t), []);
+    assert.deepEqual(placeholderProblems("{{release}}{{release}}{{featured}}"), ["{{release}} appears 2 times; it must appear exactly once", "{{commands}} appears nowhere; it must appear exactly once"]);
+  });
+  test("the hook primes with the file from the documentation branch, verbatim, and reads it again only when it changed (ETag)", async () => {
+    const r = docsRepo();
+    r.seed("release/v2.0.0", { "config/instructions.md": INSTR.replace("Use web search actively", "Use web search very actively") });
+    const cwd = codeRepo();
+    const cache = uniq("cache");
+    const p = await prime({ cwd, env: env("t"), cacheDir: cache, version: "0.1.0", fetch: r.mock.fetch, view: noUpdate });
+    assert.match(p.context, /(^|\n)# How you work in this project\n\nYou have the `idc365-decisions` CLI\./);
+    assert.match(p.context, /Use web search very actively/, "the documentation branch's own copy");
+    assert.match(p.context, /## This code branch\n\n- Documentation repository: `acme\/docs`\n- Code: `acme\/app` branch `release\/2\.0`/);
+    assert.doesNotMatch(p.context, /\{\{(release|commands|featured)\}\}/);
+    const before = r.rawReads.length;
+    await prime({ cwd, env: env("t"), cacheDir: cache, version: "0.1.0", fetch: r.mock.fetch, view: noUpdate });
+    assert.ok(r.rawReads.slice(before).includes(304), "a conditional read");
+  });
+  test("offline: the cached instructions; a missing or broken file keeps the cached copy; no cache at all: the built-in line", async () => {
+    const r = docsRepo();
+    const cwd = codeRepo();
+    const cache = uniq("cache");
+    await prime({ cwd, env: env("t"), cacheDir: cache, version: "0.1.0", fetch: r.mock.fetch, view: noUpdate });
+    const off = await prime({ cwd, env: env("t"), cacheDir: cache, version: "0.1.0", fetch: offline, view: noUpdate });
+    assert.match(off.context, /# How you work in this project/);
+    r.seed("release/v2.0.0", { "config/instructions.md": "No placeholders here.\n" });
+    const broken = await prime({ cwd, env: env("t"), cacheDir: cache, version: "0.1.0", fetch: r.mock.fetch, view: noUpdate });
+    assert.match(broken.context, /# How you work in this project/, "a text without placeholders is not used");
+    const none = await prime({ cwd: codeRepo(), env: env("t"), cacheDir: uniq("cache"), version: "0.1.0", fetch: docsRepo(undefined, 8000, null).mock.fetch, view: noUpdate });
+    assert.match(none.context, /^Run `idc365-decisions` for the guide .* could not be loaded: tell the user\./);
+    assert.match(none.context, /## This code branch/);
+    assert.ok(placeholderProblems(FALLBACK_INSTRUCTIONS).length === 0);
   });
 });
 
