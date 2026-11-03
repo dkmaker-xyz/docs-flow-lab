@@ -1,140 +1,108 @@
 # idc365-decisions CLI
 
-`@idconnectdk/idc365-decisions` is the command-line interface to the
-idc365-decisions documentation repository. It is built for AI agents: every
-call prints markdown that tells the agent what to do next. Running it with no
-arguments explains how to use it.
+The `idc365-decisions` CLI is the interface to the idc365-decisions
+documentation repository. It is built for AI agents: every call prints
+markdown that tells the agent what to do next. Running it with no arguments
+explains how to use it.
 
-> Status: skeleton. A bare run prints a placeholder; there are no real
-> commands yet.
+It ships as a **Claude Code plugin**, together with the SessionStart hook that
+primes every session and a skill with the setup instructions. The plugin's
+marketplace is the `meta/plugin` branch of the documentation repository; the
+workflow `.github/workflows/plugin-build.yml` builds it from `main`. There is
+no npm package to install, no `read:packages` token and no `.npmrc`.
 
-The package is private. It is published to GitHub Packages under the
-`idconnectdk` organisation and is never published to npmjs.org.
+Windows and Linux (and macOS) are supported equally.
 
 ## Requirements
 
-- Node.js 22.12 or later (`node --version`).
-- Read access to the `idconnectdk/idc365-decisions` repository.
-- A GitHub **personal access token (classic)** with the `read:packages`
-  scope. GitHub Packages does not accept fine-grained tokens for npm.
-  Create one at <https://github.com/settings/tokens>.
+- **Node.js 22.12 or later** on `PATH` (`node --version`). Windows: the LTS
+  installer from nodejs.org; Linux: the distribution package or nvm.
+- **Git**, with read access to `idconnectdk/idc365-decisions` stored for
+  non-interactive use (Claude Code clones the marketplace with prompts off):
+  - **Windows:** Git for Windows. It ships Git Credential Manager; run
+    `git ls-remote https://github.com/idconnectdk/idc365-decisions.git` once in
+    a terminal and sign in when the browser opens. Git for Windows also gives
+    Claude Code its Bash tool; without it Claude uses PowerShell, which the
+    plugin supports too.
+  - **Linux / macOS (or Windows):** `gh auth login`, then `gh auth setup-git`;
+    or an SSH key loaded in `ssh-agent`.
+- **Claude Code** 2.1.139 or later.
 
-## One-time setup: `~/.npmrc`
+## Install the plugin
 
-npm must know that `@idconnectdk` packages come from GitHub Packages, and it
-needs your token for that registry. Add these two lines to your **per-user**
-`~/.npmrc` (not to a project's `.npmrc`, so the token never ends up in a
-repository):
+In Claude Code:
 
-```ini
-@idconnectdk:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
+```
+/plugin marketplace add idconnectdk/idc365-decisions#meta/plugin
+/plugin install idc365-decisions@idc365-decisions
 ```
 
-Then export the token in your shell profile (`~/.bashrc`, `~/.zshrc`, …):
+Or in a terminal: `claude plugin marketplace add idconnectdk/idc365-decisions#meta/plugin`
+and `claude plugin install idc365-decisions@idc365-decisions`.
 
-```sh
-export GITHUB_PACKAGES_TOKEN=ghp_your_classic_token
-```
+A code repository that is already linked (see below) offers the plugin by
+itself: its `.claude/settings.json` names the marketplace and enables the
+plugin, and Claude Code applies it once you trust the folder.
 
-npm expands `${GITHUB_PACKAGES_TOKEN}` when it reads the file. You can also
-paste the token directly in place of `${GITHUB_PACKAGES_TOKEN}`. If the
-variable is not set, npm fails with `E401 ... authentication token not
-provided`.
-
-## Install
-
-```sh
-npm install -g @idconnectdk/idc365-decisions
-idc365-decisions
-```
-
-The second command should print the CLI's markdown guide.
+The plugin puts `idc365-decisions` on the `PATH` of Claude's Bash and
+PowerShell tools (`bin/idc365-decisions` and `bin/idc365-decisions.cmd`).
+Claude Code installs the CLI's three dependencies (ajv, commander, yaml, with
+exact pins) from npmjs.org when it caches the plugin.
 
 ## Update
 
-Every change to the CLI on `main` publishes a new version automatically. To
-get the latest one:
-
-```sh
-npm install -g @idconnectdk/idc365-decisions@latest
-idc365-decisions --version
-```
+The project settings turn on auto-update for the marketplace: Claude Code
+fetches a new plugin version in the background and asks for
+`/reload-plugins`. By hand: `/plugin marketplace update idc365-decisions`,
+then `/reload-plugins`. When auto-update is off, the session priming says
+when a newer version exists (checked once a day) and tells the agent to ask
+you first.
 
 ## Documentation token
 
 The CLI reads and writes the documentation repository through the GitHub API
 with your own token, so pull requests carry your name. It reads the token
-from the environment variable `IDC365_DECISIONS_TOKEN`.
+from the environment variable `IDC365_DECISIONS_TOKEN`. In a session, the
+skill and `idc365-decisions setup` give these steps with a pre-filled link:
 
-1. Open <https://github.com/settings/personal-access-tokens/new>
-   (**Settings → Developer settings → Personal access tokens →
-   Fine-grained tokens → Generate new token**).
-2. **Resource owner:** `idconnectdk`.
+1. Open the pre-filled form
+   <https://github.com/settings/personal-access-tokens/new?name=idc365-decisions&target_name=idconnectdk&expires_in=90&contents=write&pull_requests=write>.
+2. **Resource owner:** select `idconnectdk` again, even if it is shown (a
+   known GitHub issue creates the token for the personal account otherwise),
+   and check that **Contents** and **Pull requests** are still *Read and
+   write*.
 3. **Repository access:** *Only select repositories* →
    `idconnectdk/idc365-decisions`.
-4. **Repository permissions:**
-   - **Contents:** Read and write
-   - **Pull requests:** Read and write
-   - (Metadata: Read-only is added automatically.)
-5. Generate the token. If the organisation requires approval for
-   fine-grained tokens, wait until an owner approves it.
-6. Export it in your shell profile (`~/.bashrc`, `~/.zshrc`, …) and open a
-   new shell:
-
-   ```sh
-   export IDC365_DECISIONS_TOKEN=github_pat_your_token
-   ```
-
-This is a different token from the classic `read:packages` token in
-`~/.npmrc`, which is only for installing the CLI.
+4. **Expiration:** 90 days or what the organisation allows. Generate the
+   token; if the organisation requires approval, wait for it.
+5. Store it yourself (never paste it into a chat):
+   - **Windows** (PowerShell):
+     `[Environment]::SetEnvironmentVariable("IDC365_DECISIONS_TOKEN", "<token>", "User")`,
+     or System Properties → Environment Variables → User variables.
+   - **Linux / macOS:** `export IDC365_DECISIONS_TOKEN=<token>` in `~/.bashrc`
+     (or `~/.zshrc`, `~/.profile`).
+6. Close and reopen the terminal and Claude Code, then run
+   `idc365-decisions setup`.
 
 ## Link a code repository
 
-The CLI finds the documentation repository through
-`.idc365-decisions.json` in the root of the code repository you work in. It
-looks for the file from the current directory up to the git root:
-
-```json
-{ "repository": "idconnectdk/idc365-decisions" }
-```
-
-Commit the file. Check the setup with:
+In the root of the code repository (Claude runs it when the skill says so):
 
 ```sh
-idc365-decisions setup
+idc365-decisions setup --repository idconnectdk/idc365-decisions
 ```
 
-It reports a missing link file or token with the exact fix, and checks that
-the token can access the repository (exit code `0` ready, `1` something is
-missing).
+- Writes `.idc365-decisions.json` (`{"repository": "…"}`); asks for the
+  repository in a terminal when `--repository` is missing.
+- Merges the marketplace (`extraKnownMarketplaces`, branch `meta/plugin`,
+  auto-update) and `enabledPlugins` into `.claude/settings.json`, keeping
+  everything else; removes the old phase 9 project hook if present.
+- Checks the token and its access, with the token steps when something is
+  wrong. Exit code `0` ready, `1` something is missing.
 
-## Claude Code
-
-In the root of a code repository:
-
-```sh
-idc365-decisions hook install --repository idconnectdk/idc365-decisions
-```
-
-- Merges a SessionStart hook into `.claude/settings.json` (exec form
-  `idc365-decisions hook session-start`, no matcher, so it runs on startup,
-  resume, clear and compact) and keeps everything else in the file. Running
-  it again changes nothing. It never writes `CLAUDE.md`.
-- Creates `.idc365-decisions.json` (asks for the repository when
-  `--repository` is not given and the terminal is interactive).
-- Checks the token, its access and npm access to the registry, and lists
-  what is missing with the fix.
-
-Commit `.claude/settings.json` and `.idc365-decisions.json`. Claude Code runs
-the hook once workspace trust is accepted; a missing CLI does not break the
-session. Each session is primed with what the system is, the release and
-documentation branch of the current branch, the most important commands and
-the featured documents. Without network or token the priming comes from the
-last one cached for the branch, with a warning that it may be out of date.
-Once a day the hook checks for a newer CLI and tells the agent to ask you
-before updating. See the priming with `idc365-decisions hook session-start`;
-remove the hook with `idc365-decisions hook uninstall`.
+Commit both files. Afterwards `idc365-decisions setup` (no options) checks
+everything again and changes nothing. It never writes `CLAUDE.md`. See the
+priming with `idc365-decisions hook session-start`.
 
 ## Write documentation
 
@@ -193,9 +161,8 @@ their inverses, links, unexpanded macros, attachments and the priming budget.
 
 ## Uninstall
 
-```sh
-npm uninstall -g @idconnectdk/idc365-decisions
-```
+`/plugin uninstall idc365-decisions@idc365-decisions`, or set the plugin to
+`false` in `enabledPlugins`.
 
 ## Development
 
@@ -223,12 +190,12 @@ when it is really needed.
 
 ## Releases
 
-The GitHub Actions workflow `.github/workflows/cli-publish.yml` runs on every
-push to `main` that changes `cli/` (or the workflow itself), and can also be
-started by hand. It installs with `npm ci`, builds, smoke-tests the bare run
-and publishes to GitHub Packages with the workflow's `GITHUB_TOKEN`.
-Pull requests that change `cli/` get the same install, build and smoke test
-as a check, but never publish.
+The workflow `.github/workflows/plugin-build.yml` runs on every push to
+`main` that changes `cli/`, `plugin/` or the workflow. It builds the CLI from
+the pushed commit, assembles the plugin (`cli/dist/plugin/assemble.js`: CLI,
+`plugin/` templates, wrappers, runtime lockfile), smoke-tests it and commits
+it to `meta/plugin` with the bot. Only the bot may write `meta/plugin`
+(ruleset `meta-plugin`).
 
 Versions are `<major>.<minor>.<run number>`: major and minor come from
 `cli/package.json`, the patch is the workflow run number. To start a new

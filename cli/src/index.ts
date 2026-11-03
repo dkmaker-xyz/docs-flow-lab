@@ -9,7 +9,7 @@ import { registerIndexCommands } from "./commands/index-cmd.js";
 import { registerPostMergeCommand } from "./commands/postmerge-cmd.js";
 import { registerReleaseCommands } from "./commands/release-cmd.js";
 import { registerTechCheck } from "./commands/tech-check.js";
-import { runSetupCheck } from "./commands/setup.js";
+import { runSetup } from "./commands/setup.js";
 import { VALIDATE_HELP, runValidate } from "./commands/validate.js";
 import { packageRoot } from "./engine/package-root.js";
 import { placeholderMarkdown } from "./placeholder.js";
@@ -55,16 +55,27 @@ const validate = program
   });
 validate.helpInformation = () => VALIDATE_HELP;
 
-const setup = program.command("setup").action(async () => {
-  process.exitCode = await runSetupCheck(process.cwd());
-});
+const setup = program
+  .command("setup")
+  .option("--repository <org/repo>", "documentation repository for the link file")
+  .option("--json")
+  .action(async (o: { repository?: string; json?: boolean }) => {
+    process.exitCode = await runSetup(process.cwd(), o);
+  });
 setup.helpInformation = () =>
   [
     "# idc365-decisions setup",
     "",
-    "Checks that `.idc365-decisions.json` names the documentation repository, that",
-    "`IDC365_DECISIONS_TOKEN` is set, and that the token can access the repository.",
-    "Exit code: 0 ready, 1 something is missing.",
+    "Run in the root of a code repository. One path for everything:",
+    "",
+    "- `.idc365-decisions.json`: kept when present, written from `--repository <org>/<repo>`",
+    "  (or asked for in a terminal).",
+    "- `.claude/settings.json`: the idc365-decisions plugin marketplace and the plugin,",
+    "  enabled, so every teammate is offered it; anything else in the file is kept.",
+    "- `IDC365_DECISIONS_TOKEN`: set and able to read and write the documentation",
+    "  repository; otherwise the steps to create it (Windows and Linux/macOS).",
+    "",
+    "Exit code: 0 ready, 1 something is missing. `--json` for machine-readable output.",
     "",
     "## Next action",
     "",

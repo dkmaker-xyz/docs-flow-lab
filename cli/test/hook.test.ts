@@ -1,17 +1,15 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
-import { runInstall, runUninstall } from "../src/commands/hook-cmd.js";
+import { runSetup } from "../src/commands/setup.js";
 import { charCount, PRIMING_FIXED_TEXT } from "../src/engine/index.js";
 import { packageRoot } from "../src/engine/package-root.js";
 import { composePriming, hookOutput, prime } from "../src/hook/prime.js";
-import { HOOK_HANDLER, isOurHandler, mergeHook, removeHook } from "../src/hook/settings.js";
-import { checkForUpdate, npmView, updateNotice, type Viewer } from "../src/hook/update.js";
+import { isOurHandler, mergeProjectSettings, PLUGIN_ID, removeHook } from "../src/hook/settings.js";
+import { checkForUpdate, installedPluginVersion, marketplaceViewer, updateNotice, type Viewer } from "../src/hook/update.js";
 import { FakeRepo } from "./docs/fakerepo.js";
 import { REPO } from "./github/mock.js";
 
@@ -25,56 +23,47 @@ function ok<T>(r: T | { error: string }): T {
   return r as T;
 }
 
-describe("settings merge and uninstall", () => {
-  test("adds one exec-form handler without a matcher to empty settings", () => {
-    const r = ok(mergeHook({}));
-    assert.equal(r.changed, true);
-    assert.deepEqual(r.settings, { hooks: { SessionStart: [{ hooks: [HOOK_HANDLER] }] } });
-    assert.equal("matcher" in (r.settings.hooks as { SessionStart: object[] }).SessionStart[0]!, false);
+const OLD = { type: "command", command: "idc365-decisions", args: ["hook", "session-start"], timeout: 15 };
+const MARKET = { "idc365-decisions": { source: { source: "github", repo: "acme/docs", ref: "meta/plugin" }, autoUpdate: true } };
+
+describe("project settings for the plugin", () => {
+  test("adds the marketplace and enables the plugin in empty settings; idempotent", () => {
+    const r = ok(mergeProjectSettings({}, "acme/docs"));
+    assert.deepEqual(r, { settings: { extraKnownMarketplaces: MARKET, enabledPlugins: { [PLUGIN_ID]: true } }, changed: true, removedOldHook: false });
+    assert.equal(PLUGIN_ID, "idc365-decisions@idc365-decisions");
+    const again = ok(mergeProjectSettings(r.settings, "acme/docs"));
+    assert.equal(again.changed, false);
+    assert.deepEqual(again.settings, r.settings);
   });
-  test("is idempotent", () => {
-    const once = ok(mergeHook({})).settings;
-    const twice = ok(mergeHook(once));
-    assert.equal(twice.changed, false);
-    assert.deepEqual(twice.settings, once);
-  });
-  test("keeps every other setting, event and SessionStart hook", () => {
+  test("keeps every other setting, marketplace, plugin and hook; input not mutated", () => {
     const settings = {
       permissions: { allow: ["Bash(ls)"] },
-      hooks: {
-        PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "check.sh" }] }],
-        SessionStart: [{ matcher: "startup", hooks: [{ type: "command", command: "echo hi" }] }],
-      },
-      env: { A: "1" },
+      extraKnownMarketplaces: { other: { source: { source: "github", repo: "x/y" } } },
+      enabledPlugins: { "fmt@other": true },
+      hooks: { SessionStart: [{ matcher: "startup", hooks: [{ type: "command", command: "echo hi" }] }] },
     };
     const before = JSON.stringify(settings);
-    const r = ok(mergeHook(settings));
-    assert.equal(JSON.stringify(settings), before, "input not mutated");
-    assert.deepEqual(r.settings, { ...settings, hooks: { ...settings.hooks, SessionStart: [...settings.hooks.SessionStart, { hooks: [HOOK_HANDLER] }] } });
+    const r = ok(mergeProjectSettings(settings, "acme/docs"));
+    assert.equal(JSON.stringify(settings), before);
+    assert.deepEqual(r.settings, { ...settings, extraKnownMarketplaces: { ...settings.extraKnownMarketplaces, ...MARKET }, enabledPlugins: { "fmt@other": true, [PLUGIN_ID]: true } });
   });
-  test("an old copy (shell form, a matcher, another timeout) is replaced by the one entry", () => {
-    const settings = {
-      hooks: {
-        SessionStart: [
-          { matcher: "startup", hooks: [{ type: "command", command: "echo hi" }, { type: "command", command: "idc365-decisions  hook session-start" }] },
-          { hooks: [{ type: "command", command: "idc365-decisions", args: ["hook", "session-start"], timeout: 60 }, { type: "command", command: "other" }] },
-        ],
-      },
-    };
-    const r = ok(mergeHook(settings));
-    assert.deepEqual(r.settings.hooks, { SessionStart: [{ matcher: "startup", hooks: [{ type: "command", command: "echo hi" }] }, { hooks: [HOOK_HANDLER, { type: "command", command: "other" }] }] });
+  test("corrects a stale source, keeps the user's autoUpdate choice and an explicit disable", () => {
+    const r = ok(mergeProjectSettings({ extraKnownMarketplaces: { "idc365-decisions": { source: { source: "github", repo: "old/docs" }, autoUpdate: false } }, enabledPlugins: { [PLUGIN_ID]: false } }, "acme/docs"));
+    assert.deepEqual(r.settings, { extraKnownMarketplaces: { "idc365-decisions": { source: { source: "github", repo: "acme/docs", ref: "meta/plugin" }, autoUpdate: false } }, enabledPlugins: { [PLUGIN_ID]: false } });
+  });
+  test("removes the phase 9 project hook (exec or shell form), which the plugin replaces, and nothing else", () => {
+    const other = { matcher: "startup", hooks: [{ type: "command", command: "echo hi" }] };
+    const r = ok(mergeProjectSettings({ hooks: { SessionStart: [other, { hooks: [OLD] }, { hooks: [{ type: "command", command: "idc365-decisions  hook session-start" }] }], Stop: [] } }, "acme/docs"));
+    assert.equal(r.removedOldHook, true);
+    assert.deepEqual(r.settings.hooks, { SessionStart: [other], Stop: [] });
+    assert.deepEqual(ok(removeHook({ model: "x", hooks: { SessionStart: [{ hooks: [OLD] }] } })), { settings: { model: "x" }, changed: true });
+    assert.deepEqual(ok(removeHook({ model: "x" })), { settings: { model: "x" }, changed: false });
     assert.equal(isOurHandler({ type: "command", command: "idc365-decisions", args: ["hook", "other"] }), false);
   });
-  test("refuses a hooks section of the wrong shape", () => {
-    assert.deepEqual(mergeHook({ hooks: { SessionStart: {} } }), { error: "`hooks.SessionStart` is not an array" });
-    assert.deepEqual(mergeHook({ hooks: [] }), { error: "`hooks` is not an object" });
-  });
-  test("uninstall removes only its entry and the containers it leaves empty", () => {
-    const other = { matcher: "startup", hooks: [{ type: "command", command: "echo hi" }] };
-    const installed = ok(mergeHook({ model: "x", hooks: { SessionStart: [other], Stop: [] } })).settings;
-    assert.deepEqual(ok(removeHook(installed)), { settings: { model: "x", hooks: { SessionStart: [other], Stop: [] } }, changed: true });
-    assert.deepEqual(ok(removeHook(ok(mergeHook({ model: "x" })).settings)), { settings: { model: "x" }, changed: true });
-    assert.deepEqual(ok(removeHook({ model: "x" })), { settings: { model: "x" }, changed: false });
+  test("refuses sections of the wrong shape", () => {
+    assert.deepEqual(mergeProjectSettings({ hooks: { SessionStart: {} } }, "acme/docs"), { error: "`hooks.SessionStart` is not an array" });
+    assert.deepEqual(mergeProjectSettings({ extraKnownMarketplaces: [] }, "acme/docs"), { error: "`extraKnownMarketplaces` is not an object" });
+    assert.deepEqual(mergeProjectSettings({ enabledPlugins: "x" }, "acme/docs"), { error: "`enabledPlugins` is not an object" });
   });
 });
 
@@ -223,55 +212,50 @@ describe("priming (hook session-start)", () => {
   });
   test("an update notice reaches the priming", async () => {
     const r = docsRepo();
-    const p = await prime({ cwd: codeRepo(), env: env("t"), cacheDir: uniq("cache"), version: "0.1.0", fetch: r.mock.fetch, view: async () => ({ ok: true, version: "0.1.7" }) });
-    assert.match(p.context, /> A newer idc365-decisions CLI is available: 0\.1\.7 \(installed 0\.1\.0\)\. Ask the user for permission before updating/);
+    const pluginRoot = uniq("plugin");
+    mkdirSync(join(pluginRoot, ".claude-plugin"), { recursive: true });
+    writeFileSync(join(pluginRoot, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "idc365-decisions", version: "0.1.5" }));
+    const newer = await prime({ cwd: codeRepo(), env: env("t"), cacheDir: uniq("cache"), version: "0.1.0", pluginRoot, fetch: r.mock.fetch, view: async () => ({ ok: true, version: "0.1.7" }) });
+    assert.match(newer.context, /> A newer idc365-decisions plugin is available: 0\.1\.7 \(installed 0\.1\.5\)\. Ask the user for permission before updating; do not update on your own\. The user updates in Claude Code with `\/plugin marketplace update idc365-decisions`, then `\/reload-plugins`\./);
+    let called = false;
+    const outside = await prime({ cwd: codeRepo(), env: env("t"), cacheDir: uniq("cache"), version: "0.1.0", fetch: r.mock.fetch, view: async () => ((called = true), { ok: true, version: "9.9.9" }) });
+    assert.doesNotMatch(outside.context, /newer/);
+    assert.equal(called, false, "no check outside the plugin");
   });
 });
 
-describe("update notice", () => {
-  test("newer version: notice with the exact command; checked at most once a day", async () => {
+describe("update notice (plugin version)", () => {
+  test("newer version: notice with the update commands; checked at most once a day per repository", async () => {
     const dir = uniq("upd");
     let calls = 0;
-    const view: Viewer = async (t) => {
-      calls++;
-      return { ok: true, version: t.name === "@acme/cli" ? "1.3.10" : "9.9.9" };
-    };
-    const e = { IDC365_DECISIONS_PACKAGE: "@acme/cli", IDC365_DECISIONS_REGISTRY: "http://registry.test" };
-    const day0 = new Date("2026-11-03T08:00:00Z");
-    const s = await checkForUpdate("1.3.9", { dir, env: e, now: day0, view });
-    assert.deepEqual([s.newer, s.latest, s.cached, s.command], [true, "1.3.10", false, "npm install -g @acme/cli@1.3.10"]);
-    assert.match(updateNotice(s)!, /Ask the user for permission before updating; do not update on your own\. The command is `npm install -g @acme\/cli@1\.3\.10`\./);
-    const again = await checkForUpdate("1.3.9", { dir, env: e, now: new Date("2026-11-03T20:00:00Z"), view });
-    assert.deepEqual([again.cached, calls], [true, 1]);
-    await checkForUpdate("1.3.9", { dir, env: e, now: new Date("2026-11-04T09:00:00Z"), view });
+    const view: Viewer = async () => (calls++, { ok: true, version: "0.1.10" });
+    const s = await checkForUpdate("0.1.9", { dir, key: "acme/docs", now: new Date("2026-11-03T08:00:00Z"), view });
+    assert.deepEqual([s.newer, s.latest, s.cached], [true, "0.1.10", false]);
+    await checkForUpdate("0.1.9", { dir, key: "acme/docs", now: new Date("2026-11-03T20:00:00Z"), view });
+    assert.equal(calls, 1);
+    await checkForUpdate("0.1.9", { dir, key: "acme/docs", now: new Date("2026-11-04T09:00:00Z"), view });
     assert.equal(calls, 2);
-    await checkForUpdate("1.3.9", { dir, env: { ...e, IDC365_DECISIONS_PACKAGE: "@other/cli" }, now: new Date("2026-11-04T10:00:00Z"), view });
-    assert.equal(calls, 3, "another package is checked anew");
+    await checkForUpdate("0.1.9", { dir, key: "other/docs", now: new Date("2026-11-04T10:00:00Z"), view });
+    assert.equal(calls, 3, "another repository is checked anew");
   });
   test("same or older version, or a failed check: no notice", async () => {
-    assert.equal(updateNotice(await checkForUpdate("1.3.10", { dir: uniq("u"), view: async () => ({ ok: true, version: "1.3.10" }) })), undefined);
-    assert.equal(updateNotice(await checkForUpdate("1.4.0", { dir: uniq("u"), view: async () => ({ ok: true, version: "1.3.10" }) })), undefined);
-    const failed = await checkForUpdate("1.0.0", { dir: uniq("u"), view: async () => ({ ok: false, error: "not logged in to the registry (401)" }) });
-    assert.deepEqual([failed.newer, failed.error], [false, "not logged in to the registry (401)"]);
+    assert.equal(updateNotice(await checkForUpdate("0.1.10", { dir: uniq("u"), key: "k", view: async () => ({ ok: true, version: "0.1.10" }) })), undefined);
+    assert.equal(updateNotice(await checkForUpdate("0.2.0", { dir: uniq("u"), key: "k", view: async () => ({ ok: true, version: "0.1.10" }) })), undefined);
+    const failed = await checkForUpdate("0.1.0", { dir: uniq("u"), key: "k", view: async () => { throw new Error("offline"); } });
+    assert.deepEqual([failed.newer, failed.error], [false, "offline"]);
   });
-  test("npm view against a mocked registry", async () => {
-    const server = createServer((req, res) => {
-      if (!/test-cli/.test(decodeURIComponent(req.url ?? ""))) {
-        res.writeHead(404, { "content-type": "application/json" }).end('{"error":"not found"}');
-        return;
-      }
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ name: "@acme/test-cli", "dist-tags": { latest: "0.1.42" }, versions: { "0.1.41": { name: "@acme/test-cli", version: "0.1.41" }, "0.1.42": { name: "@acme/test-cli", version: "0.1.42" } }, time: {} }));
-    });
-    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-    const registry = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    try {
-      assert.deepEqual(await npmView({ name: "@acme/test-cli", registry }, 20000), { ok: true, version: "0.1.42" });
-      const missing = await npmView({ name: "@acme/missing", registry }, 20000);
-      assert.ok(!missing.ok && /404/.test(missing.error));
-    } finally {
-      server.close();
-    }
+  test("reads plugin.json on meta/plugin with the documentation token; the installed version from the plugin root", async () => {
+    const r = new FakeRepo();
+    r.seed("main", { "README.md": "x" });
+    assert.deepEqual(await marketplaceViewer(r.client())(), { ok: false, error: "no plugin on `meta/plugin`" });
+    r.seed("meta/plugin", { "plugin/.claude-plugin/plugin.json": JSON.stringify({ name: "idc365-decisions", version: "0.1.42" }) });
+    assert.deepEqual(await marketplaceViewer(r.client())(), { ok: true, version: "0.1.42" });
+    const root = uniq("pr");
+    mkdirSync(join(root, ".claude-plugin"), { recursive: true });
+    writeFileSync(join(root, ".claude-plugin", "plugin.json"), JSON.stringify({ version: "0.1.41" }));
+    assert.equal(installedPluginVersion(root), "0.1.41");
+    assert.equal(installedPluginVersion(undefined), undefined);
+    assert.equal(installedPluginVersion(uniq("none")), undefined);
   });
 });
 
@@ -290,62 +274,75 @@ function capture<T>(fn: () => Promise<T> | T): Promise<{ value: T; out: string }
     });
 }
 
-describe("hook install and uninstall", () => {
+describe("setup (link file, project settings, token)", () => {
   const ghOk = (async () => new Response(JSON.stringify({ full_name: REPO, permissions: { push: true } }), { status: 200, headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
-  test("merges the hook, creates the link file, checks token, access and npm; idempotent; never writes CLAUDE.md", async () => {
+  const gh401 = (async () => new Response(JSON.stringify({ message: "Bad credentials" }), { status: 401, headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+  const settingsOf = (root: string) => JSON.parse(readFileSync(join(root, ".claude", "settings.json"), "utf8"));
+  test("--repository: link file, marketplace + plugin in the project settings, token check; idempotent; never writes CLAUDE.md", async () => {
     const root = codeRepo(false);
     mkdirSync(join(root, ".claude"));
-    writeFileSync(join(root, ".claude", "settings.json"), JSON.stringify({ permissions: { deny: ["Read(.env)"] } }));
-    const run = () => capture(() => runInstall(join(root), { repository: REPO, env: { ...env("t"), IDC365_DECISIONS_CACHE: uniq("c") }, fetch: ghOk, view: noUpdate, interactive: false, version: "0.1.0" }));
+    writeFileSync(join(root, ".claude", "settings.json"), JSON.stringify({ permissions: { deny: ["Read(.env)"] }, hooks: { SessionStart: [{ hooks: [OLD] }] } }));
+    const run = () => capture(() => runSetup(join(root), { repository: REPO, env: env("t"), fetch: ghOk, interactive: false }));
     const first = await run();
     assert.equal(first.value, 0, first.out);
-    assert.match(first.out, /OK: Hook: merged into/);
+    assert.match(first.out, /^# Setup complete/);
     assert.match(first.out, /OK: Link file: created `\.idc365-decisions\.json` naming `acme\/docs`/);
+    assert.match(first.out, /OK: Project settings: updated `\.claude\/settings\.json`: marketplace `idc365-decisions` .*plugin `idc365-decisions@idc365-decisions` enabled; removed the old `idc365-decisions hook session-start` project hook/);
     assert.match(first.out, /OK: Token: .* can read and write `acme\/docs`/);
-    assert.match(first.out, /OK: npm: .*\(latest 0\.1\.0\)/);
-    assert.doesNotMatch(first.out, /newer idc365-decisions CLI/);
-    assert.match(first.out, /Commit `\.claude\/settings\.json` and `\.idc365-decisions\.json`/);
-    const settings = JSON.parse(readFileSync(join(root, ".claude", "settings.json"), "utf8"));
-    assert.deepEqual(settings, { permissions: { deny: ["Read(.env)"] }, hooks: { SessionStart: [{ hooks: [HOOK_HANDLER] }] } });
+    assert.match(first.out, /Commit `\.idc365-decisions\.json` and `\.claude\/settings\.json`/);
+    assert.deepEqual(settingsOf(root), { permissions: { deny: ["Read(.env)"] }, extraKnownMarketplaces: MARKET, enabledPlugins: { [PLUGIN_ID]: true } });
     assert.deepEqual(JSON.parse(readFileSync(join(root, ".idc365-decisions.json"), "utf8")), { repository: REPO });
     const second = await run();
-    assert.match(second.out, /OK: Hook: already in/);
-    assert.deepEqual(JSON.parse(readFileSync(join(root, ".claude", "settings.json"), "utf8")), settings);
+    assert.match(second.out, /already set in `\.claude\/settings\.json`/);
+    assert.match(second.out, /Next action\n\nNone\. Continue/);
     assert.equal(readdirSync(root).includes("CLAUDE.md"), false);
   });
-  test("reports what is missing: link file, token, npm access; exit 1", async () => {
-    const root = codeRepo(false);
-    const { value, out } = await capture(() => runInstall(root, { env: env(), view: async () => ({ ok: false, error: "not logged in to the registry (401)" }), interactive: false }));
-    assert.equal(value, 1);
-    assert.match(out, /Missing: Link file: `\.idc365-decisions\.json` is missing/);
-    assert.match(out, /Missing: Token: `IDC365_DECISIONS_TOKEN` is not set/);
-    assert.match(out, /Missing: npm: .* not logged in to the registry \(401\)\n  Fix: Log in to the registry/);
-    assert.ok(existsSync(join(root, ".claude", "settings.json")), "the hook is installed anyway");
+  test("an existing link file is used without --repository; a different --repository is reported, not written", async () => {
+    const root = codeRepo();
+    const plain = await capture(() => runSetup(root, { env: env("t"), fetch: ghOk, interactive: false }));
+    assert.equal(plain.value, 0, plain.out);
+    assert.deepEqual(settingsOf(root).enabledPlugins, { [PLUGIN_ID]: true });
+    const other = await capture(() => runSetup(root, { repository: "acme/other", env: env("t"), fetch: ghOk, interactive: false }));
+    assert.equal(other.value, 1);
+    assert.match(other.out, /names `acme\/docs`, not `acme\/other`; it was left unchanged/);
   });
-  test("the link file comes from the prompt when interactive", async () => {
-    const root = codeRepo(false);
-    await capture(() => runInstall(root, { env: env("t"), fetch: ghOk, view: noUpdate, interactive: true, prompt: async () => "acme/docs" }));
-    assert.deepEqual(JSON.parse(readFileSync(join(root, ".idc365-decisions.json"), "utf8")), { repository: REPO });
+  test("no token: the steps with the pre-filled link for the organisation, Windows and Linux; exit 1", async () => {
+    const root = codeRepo();
+    const { value, out } = await capture(() => runSetup(root, { env: env(), interactive: false }));
+    assert.equal(value, 1);
+    assert.match(out, /Missing: Token: `IDC365_DECISIONS_TOKEN` is not set/);
+    assert.match(out, /## Documentation token \(the user does this; never ask for the token in the chat\)/);
+    assert.match(out, /https:\/\/github\.com\/settings\/personal-access-tokens\/new\?name=idc365-decisions&description=[^ ]*&target_name=acme&expires_in=90&contents=write&pull_requests=write/);
+    assert.match(out, /select `acme` again in the dropdown/);
+    assert.match(out, /Only select repositories\* → `acme\/docs` only/);
+    assert.match(out, /\[Environment\]::SetEnvironmentVariable\("IDC365_DECISIONS_TOKEN", "<token>", "User"\)/);
+    assert.match(out, /export IDC365_DECISIONS_TOKEN=<token>` to `~\/\.bashrc`/);
+    assert.match(out, /Give the user the token steps above, wait until they have restarted Claude Code/);
+  });
+  test("a rejected token is named, with the steps", async () => {
+    const { value, out } = await capture(() => runSetup(codeRepo(), { env: env("bad"), fetch: gh401, interactive: false }));
+    assert.equal(value, 1);
+    assert.match(out, /Missing: Token: The token in `IDC365_DECISIONS_TOKEN` was rejected \(401\)/);
+    assert.match(out, /personal-access-tokens\/new\?/);
+  });
+  test("no link file: asks in a terminal; otherwise says how to link", async () => {
+    const asked = codeRepo(false);
+    await capture(() => runSetup(asked, { env: env("t"), fetch: ghOk, interactive: true, prompt: async () => "acme/docs" }));
+    assert.deepEqual(JSON.parse(readFileSync(join(asked, ".idc365-decisions.json"), "utf8")), { repository: REPO });
+    const quiet = codeRepo(false);
+    const { value, out } = await capture(() => runSetup(quiet, { env: env("t"), fetch: ghOk, interactive: false }));
+    assert.equal(value, 1);
+    assert.match(out, /Missing: Link file: `\.idc365-decisions\.json` is missing\n  Fix: Ask the user for the documentation repository and run `idc365-decisions setup --repository/);
+    assert.equal(existsSync(join(quiet, ".claude", "settings.json")), false);
   });
   test("invalid settings JSON is not overwritten", async () => {
     const root = codeRepo();
     mkdirSync(join(root, ".claude"));
     writeFileSync(join(root, ".claude", "settings.json"), "{ not json");
-    const { value, out } = await capture(() => runInstall(root, { env: env("t"), fetch: ghOk, view: noUpdate, interactive: false }));
+    const { value, out } = await capture(() => runSetup(root, { env: env("t"), fetch: ghOk, interactive: false }));
     assert.equal(value, 1);
-    assert.match(out, /cannot be read: it is not valid JSON/);
+    assert.match(out, /`\.claude\/settings\.json` was not changed: it is not valid JSON/);
     assert.equal(readFileSync(join(root, ".claude", "settings.json"), "utf8"), "{ not json");
-  });
-  test("uninstall removes only its entry", async () => {
-    const root = codeRepo();
-    mkdirSync(join(root, ".claude"));
-    const other = { matcher: "startup", hooks: [{ type: "command", command: "echo hi" }] };
-    writeFileSync(join(root, ".claude", "settings.json"), JSON.stringify({ hooks: { SessionStart: [other, { hooks: [HOOK_HANDLER] }] } }));
-    const { out } = await capture(() => runUninstall(root, false));
-    assert.match(out, /# Hook removed/);
-    assert.deepEqual(JSON.parse(readFileSync(join(root, ".claude", "settings.json"), "utf8")), { hooks: { SessionStart: [other] } });
-    assert.ok(existsSync(join(root, ".idc365-decisions.json")));
-    assert.match((await capture(() => runUninstall(root, false))).out, /# Hook not installed/);
   });
 });
 
@@ -354,8 +351,7 @@ describe("hook session-start binary", () => {
     const root = codeRepo(false);
     const cache = uniq("c");
     mkdirSync(cache);
-    writeFileSync(join(cache, "update-check.json"), JSON.stringify({ checkedAt: new Date().toISOString(), package: "@idconnectdk/idc365-decisions", registry: "https://npm.pkg.github.com", result: { ok: false, error: "x" } }));
-    const out = execFileSync(process.execPath, [join(packageRoot(), "dist", "index.js"), "hook", "session-start"], { cwd: root, input: JSON.stringify({ hook_event_name: "SessionStart", source: "clear", cwd: root }), env: { PATH: process.env.PATH, HOME: process.env.HOME, IDC365_DECISIONS_CACHE: cache }, encoding: "utf8" });
+    const out = execFileSync(process.execPath, [join(packageRoot(), "build-test", "src", "index.js"), "hook", "session-start"], { cwd: root, input: JSON.stringify({ hook_event_name: "SessionStart", source: "clear", cwd: root }), env: { PATH: process.env.PATH, HOME: process.env.HOME, IDC365_DECISIONS_CACHE: cache }, encoding: "utf8" });
     const parsed = JSON.parse(out);
     assert.equal(parsed.hookSpecificOutput.hookEventName, "SessionStart");
     assert.match(parsed.hookSpecificOutput.additionalContext, /not linked/);
